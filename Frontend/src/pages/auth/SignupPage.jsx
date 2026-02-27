@@ -9,15 +9,29 @@ const SignupPage = () => {
     const [role, setRole] = useState('STUDENT');
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
-    const { login } = useAuth();
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+    const { login, signup } = useAuth();
     const { theme } = useTheme();
     const navigate = useNavigate();
 
-    const handleSignup = (e) => {
+    const handleSignup = async (e) => {
         e.preventDefault();
-        if (!username || !email) return alert('Please fill all fields');
-        login(role, { name: username, email: email, id: Date.now().toString() });
-        navigate('/');
+        if (!username || !email || !password) return alert('Please fill all fields');
+        if (password !== confirmPassword) return alert('Passwords do not match');
+
+        setLoading(true);
+        try {
+            await signup({ username, email, password, role });
+            // After signup, automatically log them in
+            await login(role, { username, password });
+            navigate('/');
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const roles = [
@@ -37,11 +51,11 @@ const SignupPage = () => {
                 className="w-full max-w-md glass-card-accent p-10 z-10 border-[var(--border-primary)]"
             >
                 <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-[var(--accent-primary)] rounded-2xl flex items-center justify-center font-bold text-3xl mx-auto mb-4 shadow-xl shadow-[var(--accent-primary)]/20 text-white border border-white/10 transition-all duration-500 text-white">
-                        C
+                    <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-[var(--accent-primary)]/10 border border-white/10 overflow-hidden transition-all duration-500">
+                        <img src="/logo.jpeg" alt="Avanthi Logo" className="w-full h-full object-cover" />
                     </div>
-                    <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight uppercase">Create Account</h1>
-                    <p className="text-[var(--text-secondary)] text-sm mt-2 font-bold uppercase tracking-widest">Join the Intelligent Campus</p>
+                    <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight uppercase">Avanthi Node</h1>
+                    <p className="text-[var(--text-secondary)] text-[9px] font-black uppercase tracking-[0.4em] mt-2 text-[var(--accent-primary)]">Infrastructural Onboarding</p>
                 </div>
 
                 <form onSubmit={handleSignup} className="space-y-6">
@@ -91,6 +105,18 @@ const SignupPage = () => {
                             <input
                                 type="password"
                                 placeholder="Secure Access Pin"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full bg-white/5 border border-[var(--border-primary)] rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-[var(--accent-primary)]/50 focus:bg-[var(--accent-primary)]/5 transition-all text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] font-bold text-sm"
+                            />
+                        </div>
+                        <div className="relative group">
+                            <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] group-focus-within:text-[var(--accent-primary)] transition-colors" />
+                            <input
+                                type="password"
+                                placeholder="Confirm Access Pin"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
                                 className="w-full bg-white/5 border border-[var(--border-primary)] rounded-2xl py-4 pl-12 pr-4 outline-none focus:border-[var(--accent-primary)]/50 focus:bg-[var(--accent-primary)]/5 transition-all text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] font-bold text-sm"
                             />
                         </div>
@@ -98,9 +124,10 @@ const SignupPage = () => {
 
                     <button
                         type="submit"
-                        className="w-full py-4 bg-[var(--accent-primary)] hover:brightness-110 rounded-2xl font-black text-white shadow-xl shadow-[var(--accent-primary)]/20 transition-all border border-white/10 uppercase tracking-widest text-xs"
+                        disabled={loading}
+                        className="w-full py-4 bg-[var(--accent-primary)] hover:brightness-110 rounded-2xl font-black text-white shadow-xl shadow-[var(--accent-primary)]/20 transition-all border border-white/10 uppercase tracking-widest text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Create Credentials
+                        {loading ? 'Processing Hash...' : 'Create Credentials'}
                     </button>
                 </form>
 

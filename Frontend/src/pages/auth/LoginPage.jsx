@@ -9,16 +9,17 @@ const LoginPage = () => {
     const [role, setRole] = useState('STUDENT');
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const { theme } = useTheme();
     const navigate = useNavigate();
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
 
         if (role === 'ADMIN') {
             if (username === 'admin' && password === 'admin') {
-                login(role, { name: 'System Administrator', id: 'ADMIN_001' });
+                login(role, { name: 'System Administrator', id: 'ADMIN_001', role: 'ADMIN' });
                 navigate('/');
             } else {
                 alert('CRITICAL ERROR: Invalid Administrative Credentials');
@@ -26,9 +27,17 @@ const LoginPage = () => {
             return;
         }
 
-        if (!username) return alert('Please input identity');
-        login(role, { name: username });
-        navigate('/');
+        if (!username || !password) return alert('Please input identity and token');
+
+        setLoading(true);
+        try {
+            await login(role, { username, password });
+            navigate('/');
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const roles = [
@@ -49,11 +58,12 @@ const LoginPage = () => {
                 className="w-full max-w-md glass-card-accent p-10 z-10 border-[var(--border-primary)]"
             >
                 <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-[var(--accent-primary)] rounded-2xl flex items-center justify-center font-bold text-3xl mx-auto mb-4 shadow-xl shadow-[var(--accent-primary)]/20 text-white border border-white/10 transition-all duration-500">
-                        C
+                    <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-[var(--accent-primary)]/10 border border-white/10 overflow-hidden transition-all duration-500">
+                        <img src="/logo.jpeg" alt="Avanthi Logo" className="w-full h-full object-cover" />
                     </div>
-                    <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight uppercase">Access Portal</h1>
-                    <p className="text-[var(--text-secondary)] text-sm mt-2 font-bold uppercase tracking-widest">Master Synchronisation Node</p>
+                    <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight uppercase">Avanthi Institute</h1>
+                    <p className="text-[var(--text-secondary)] text-[10px] font-black uppercase tracking-[0.4em] mt-1 text-[var(--accent-primary)]">Engineering & Technology</p>
+                    <p className="text-[var(--text-secondary)] text-[8px] font-bold uppercase tracking-[0.2em] mt-4 opacity-50 italic">Master Synchronization Node</p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-6">
@@ -102,15 +112,21 @@ const LoginPage = () => {
 
                     <button
                         type="submit"
-                        className="w-full py-4 bg-[var(--accent-primary)] hover:brightness-110 rounded-2xl font-black text-white shadow-xl shadow-[var(--accent-primary)]/20 transition-all border border-white/10 uppercase tracking-widest text-xs"
+                        disabled={loading}
+                        className="w-full py-4 bg-[var(--accent-primary)] hover:brightness-110 rounded-2xl font-black text-white shadow-xl shadow-[var(--accent-primary)]/20 transition-all border border-white/10 uppercase tracking-widest text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Sychronize Access
+                        {loading ? 'Sychronizing Node...' : 'Sychronize Access'}
                     </button>
                 </form>
 
-                <div className="mt-8 text-center text-[10px] font-black uppercase tracking-widest">
-                    <span className="text-[var(--text-secondary)]">Identity unauthorized? </span>
-                    <Link to="/signup" className="text-[var(--accent-primary)] hover:brightness-125 transition-colors">Request Credentials</Link>
+                <div className="mt-8 text-center text-[10px] font-black uppercase tracking-widest flex flex-col gap-2">
+                    <div>
+                        <span className="text-[var(--text-secondary)]">Identity unauthorized? </span>
+                        <Link to="/signup" className="text-[var(--accent-primary)] hover:brightness-125 transition-colors">Request Credentials</Link>
+                    </div>
+                    <div>
+                        <Link to="/forgot-password" tuning="text-[var(--text-secondary)] hover:text-[var(--accent-primary)] transition-colors">Emergency Protocol: Reset Token</Link>
+                    </div>
                 </div>
             </motion.div>
         </div>

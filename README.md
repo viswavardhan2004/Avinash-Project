@@ -27,7 +27,7 @@ A comprehensive, high-density Academic ERP system designed for modern campuses. 
 ## 🛠️ Technical Stack
 
 - **Frontend**: React.js, Tailwind CSS (V4), Framer Motion, Recharts, Lucide Icons.
-- **Backend**: Spring Boot (Java), MySQL/PostgreSQL.
+- **Backend**: Spring Boot (Java), MongoDB (Atlas).
 - **Services**: Centralized Axios API layer, OAuth2/JWT Authentication, Theme Context.
 
 ## 📥 Prerequisites & Setup
@@ -38,7 +38,7 @@ To run this project locally, you need the following installed:
 - **Node.js** (v18.0 or higher) - [Download](https://nodejs.org/)
 - **Java JDK 17** or higher - [Download](https://www.oracle.com/java/technologies/downloads/)
 - **Maven** (optional, wrapper included)
-- **Database**: MySQL or PostgreSQL (depending on your `application.properties` config)
+- **Database**: MongoDB Atlas (Connection URI configured in `application.properties`)
 
 ### 2. Implementation Steps
 
@@ -47,7 +47,7 @@ To run this project locally, you need the following installed:
    ```bash
    cd MyCampusSmartDashboardSystem
    ```
-2. Configure your database credentials in `src/main/resources/application.properties`.
+2. Ensure your MongoDB Atlas URI is configured correctly in `src/main/resources/application.properties`.
 3. Run the Spring Boot application:
    ```bash
    ./mvnw spring-boot:run

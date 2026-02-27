@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence, motion as motion2 } from 'framer-motion';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     Users,
@@ -10,51 +12,399 @@ import {
     BarChart3,
     PieChart,
     ArrowUpRight,
-    ShieldAlert
+    ShieldAlert,
+    RefreshCw
 } from 'lucide-react';
 import NotificationBroadcaster from '../../components/NotificationBroadcaster';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     AreaChart, Area, Cell, PieChart as RePie, Pie
 } from 'recharts';
-import { sectionService, studentService } from '../../services/api';
+import { sectionService, studentService, gradeService, teacherService, attendanceService } from '../../services/api';
+
+/* ── Top GPA Modal ────────────────────────────────────────── */
+const TopGpaModal = ({ onClose }) => {
+    const [topStudents, setTopStudents] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const getStdId = (obj) => {
+        if (!obj) return null;
+        if (typeof obj === 'string') return obj;
+        return obj.id || obj._id || (obj['$id'] ? obj['$id'].toString() : null);
+    };
+
+    const getRfid = (obj) => {
+        if (!obj) return null;
+        return obj.rfidUid || obj.rfid_uid || obj.rfid;
+    };
+
+    useEffect(() => {
+        Promise.allSettled([studentService.getAll(), gradeService.getAll()]).then(([sRes, gRes]) => {
+            const students = sRes.status === 'fulfilled' ? (sRes.value.data || []) : [];
+            const allGrades = gRes.status === 'fulfilled' ? (gRes.value.data || []) : [];
+
+            const enriched = students.map(s => {
+                const sId = s.id || s._id;
+                const sRfid = getRfid(s);
+
+                const studentGrades = allGrades.filter(g => {
+                    const gStdId = getStdId(g.student);
+                    const gRfid = getRfid(g.student);
+                    return (gStdId && gStdId === sId) || (sRfid && gRfid === sRfid);
+                });
+
+                let cgpa = 0;
+                if (studentGrades.length > 0) {
+                    const totalPoints = studentGrades.reduce((acc, g) => {
+                        const gp = { 'O': 10, 'A+': 9, 'A': 8, 'B': 7, 'C': 6, 'D': 4 }[g.grade] || 0;
+                        return acc + (gp * (g.credits || 3));
+                    }, 0);
+                    const totalCredits = studentGrades.reduce((acc, g) => acc + (g.credits || 3), 0);
+                    cgpa = totalCredits > 0 ? parseFloat((totalPoints / totalCredits).toFixed(2)) : 0;
+                }
+                return { ...s, cgpa };
+            });
+
+            const sorted = enriched
+                .sort((a, b) => {
+                    if (b.cgpa !== a.cgpa) return b.cgpa - a.cgpa;
+                    return (a.name || '').localeCompare(b.name || '');
+                })
+                .slice(0, 10);
+            setTopStudents(sorted);
+        }).finally(() => setLoading(false));
+    }, []);
+
+    const rankColors = ['text-yellow-400', 'text-slate-300', 'text-orange-400'];
+    const yearLabel = (y) => ['', '1st Year', '2nd Year', '3rd Year', '4th Year'][y] || `Year ${y}`;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+            <motion2.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="glass-card-accent w-full max-w-lg p-8 border-[var(--border-primary)] relative max-h-[85vh] overflow-y-auto custom-scrollbar"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tighter">🏆 Top Students by GPA</h2>
+                        <p className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-[0.3em] mt-1">Ranked by cumulative GPA</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                </div>
+
+                {loading ? (
+                    <div className="text-center py-16 text-[var(--text-secondary)] animate-pulse font-black uppercase tracking-widest text-xs">Calculating Rankings...</div>
+                ) : topStudents.length === 0 ? (
+                    <div className="text-center py-16 text-[var(--text-secondary)] font-black uppercase tracking-widest text-xs opacity-40">No grade data available yet</div>
+                ) : (
+                    <div className="space-y-3">
+                        {topStudents.map((s, i) => (
+                            <div key={s.id} className="flex items-center gap-4 p-4 rounded-2xl bg-white/[0.03] border border-[var(--border-primary)] hover:border-[var(--accent-primary)]/30 transition-all">
+                                <span className={`text-2xl font-black italic w-8 text-center ${rankColors[i] || 'text-[var(--text-secondary)]'}`}>
+                                    {String(i + 1).padStart(2, '0')}
+                                </span>
+                                <div className="w-10 h-10 rounded-xl bg-[var(--accent-primary)]/20 border border-[var(--accent-primary)]/10 flex items-center justify-center text-[var(--accent-primary)] font-black text-lg flex-shrink-0">
+                                    {s.name?.charAt(0)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-black text-[var(--text-primary)] uppercase tracking-tight truncate">{s.name}</p>
+                                    <p className="text-[10px] text-[var(--text-secondary)] font-bold mt-0.5">
+                                        {s.branch || '—'} • {yearLabel(s.year)} • {s.rollNo || 'No Roll No'}
+                                    </p>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                    <p className={`text-2xl font-black tracking-tighter italic ${s.cgpa >= 9 ? 'text-emerald-400' : s.cgpa >= 7.5 ? 'text-[var(--accent-primary)]' : 'text-[var(--text-primary)]'}`}>
+                                        {s.cgpa > 0 ? s.cgpa : 'N/A'}
+                                    </p>
+                                    <p className="text-[8px] font-black text-[var(--text-secondary)] uppercase tracking-widest">CGPA</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </motion2.div>
+        </div>
+    );
+};
+
+/* ── Attendance Batch Modal ────────────────────────────────── */
+const AttendanceBatchModal = ({ onClose }) => {
+    const [batches, setBatches] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const getStdId = (obj) => {
+        if (!obj) return null;
+        if (typeof obj === 'string') return obj;
+        return obj.id || obj._id || (obj['$id'] ? obj['$id'].toString() : null);
+    };
+
+    const getRfid = (obj) => {
+        if (!obj) return null;
+        return obj.rfidUid || obj.rfid_uid || obj.rfid;
+    };
+
+    useEffect(() => {
+        Promise.allSettled([studentService.getAll(), attendanceService.getAll()]).then(([sRes, aRes]) => {
+            const students = sRes.status === 'fulfilled' ? (sRes.value.data || []) : [];
+            const allAttendance = aRes.status === 'fulfilled' ? (aRes.value.data || []) : [];
+
+            const grouped = {};
+            students.forEach(s => {
+                const sId = s.id || s._id;
+                const sRfid = getRfid(s);
+                const key = `${s.branch || 'Unknown'} - Year ${s.year || '?'}`;
+                if (!grouped[key]) grouped[key] = { name: key, count: 0, present: 0, total: 0 };
+
+                const studentAtt = allAttendance.filter(a => {
+                    const aStdId = getStdId(a.student);
+                    const aRfid = getRfid(a.student);
+                    return (aStdId && aStdId === sId) || (sRfid && aRfid === sRfid);
+                });
+
+                grouped[key].count++;
+                grouped[key].present += studentAtt.filter(a => ['P', 'p', 'Present'].includes(a.status)).length;
+                grouped[key].total += studentAtt.length;
+            });
+
+            const batchList = Object.values(grouped).map(b => ({
+                ...b,
+                attendance: b.total > 0 ? Math.round((b.present / b.total) * 100) : 0
+            })).sort((a, b) => a.name.localeCompare(b.name));
+
+            setBatches(batchList);
+        }).finally(() => setLoading(false));
+    }, []);
+
+    const color = (pct) => {
+        if (pct < 60) return { text: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30', label: 'Critical' };
+        if (pct < 75) return { text: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', label: 'Warning' };
+        return { text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', label: 'Good' };
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
+            <motion2.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+                className="glass-card-accent w-full max-w-lg p-8 border-[var(--border-primary)] relative max-h-[85vh] overflow-y-auto custom-scrollbar"
+                onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-2">
+                    <div>
+                        <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tighter">📊 Attendance by Batch</h2>
+                        <p className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-[0.3em] mt-1">Batch-wise attendance overview</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                </div>
+                {/* Legend */}
+                <div className="flex gap-4 mb-6 mt-4">
+                    {[['bg-red-500', '< 60% Critical'], ['bg-yellow-500', '60–75% Warning'], ['bg-emerald-500', '> 75% Good']].map(([c, l]) => (
+                        <div key={l} className="flex items-center gap-1.5 text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-wider">
+                            <span className={`w-2.5 h-2.5 rounded-full ${c}`} />{l}
+                        </div>
+                    ))}
+                </div>
+                {loading ? (
+                    <div className="text-center py-16 text-[var(--text-secondary)] animate-pulse font-black uppercase tracking-widest text-xs">Loading Batches...</div>
+                ) : (
+                    <div className="space-y-3">
+                        {batches.map((b, i) => {
+                            const c = color(b.attendance);
+                            return (
+                                <div key={i} className={`p-4 rounded-2xl ${c.bg} border ${c.border} transition-all`}>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div>
+                                            <p className="font-black text-[var(--text-primary)] uppercase tracking-tight text-sm">{b.name}</p>
+                                            <p className="text-[9px] text-[var(--text-secondary)] font-bold mt-0.5">{b.count} students</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className={`text-2xl font-black tracking-tighter italic ${c.text}`}>{b.attendance}%</p>
+                                            <span className={`text-[8px] font-black uppercase tracking-widest ${c.text}`}>{c.label}</span>
+                                        </div>
+                                    </div>
+                                    {/* Progress bar */}
+                                    <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                        <div className={`h-full rounded-full ${b.attendance < 60 ? 'bg-red-500' : b.attendance < 75 ? 'bg-yellow-500' : 'bg-emerald-500'}`}
+                                            style={{ width: `${b.attendance}%`, transition: 'width 1s ease' }} />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </motion2.div>
+        </div>
+    );
+};
 
 const AdminDashboard = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
     const [stats, setStats] = useState({
         totalStudents: 0,
         activeSections: 0,
         avgAttendance: 0,
-        topGpa: 0
+        topGpa: 0,
+        totalTeachers: 0
     });
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [showBroadcaster, setShowBroadcaster] = useState(false);
+    const [showTopGpa, setShowTopGpa] = useState(false);
+    const [showAttendance, setShowAttendance] = useState(false);
 
-    const sectionComparison = [
-        { name: 'CSE-A', attendance: 92, performance: 8.4 },
-        { name: 'CSE-B', attendance: 85, performance: 7.9 },
-        { name: 'ECE-A', attendance: 88, performance: 8.1 },
-        { name: 'ME-A', attendance: 78, performance: 7.2 },
-    ];
+    const [sectionComparison, setSectionComparison] = useState([]);
+    const [distributionData, setDistributionData] = useState([]);
+    const [lowAttendanceStudents, setLowAttendanceStudents] = useState([]);
+    const [topPerformers, setTopPerformers] = useState([]);
 
-    const distributionData = [
-        { name: 'CSE', value: 400, color: 'var(--accent-primary)' },
-        { name: 'ECE', value: 300, color: '#7c3aed' },
-        { name: 'ME', value: 300, color: '#ec4899' },
-    ];
+    const fetchStatsData = async (isRefresh = false) => {
+        if (isRefresh) setRefreshing(true);
+        else setLoading(true);
+
+        try {
+            // Force reset storage URL if it looks wrong
+            if (localStorage.getItem('API_URL') && !localStorage.getItem('API_URL').includes('8080')) {
+                localStorage.removeItem('API_URL');
+            }
+
+            const [stdRes, secRes, tchRes, attRes, grdRes] = await Promise.allSettled([
+                studentService.getAll(),
+                sectionService.getAll(),
+                teacherService.getAll(),
+                attendanceService.getAll(),
+                gradeService.getAll()
+            ]);
+
+            const students = stdRes.status === 'fulfilled' ? (stdRes.value.data || []) : [];
+            const allSections = secRes.status === 'fulfilled' ? (secRes.value.data || []) : [];
+            const teachers = tchRes.status === 'fulfilled' ? (tchRes.value.data || []) : [];
+            const allAttendance = attRes.status === 'fulfilled' ? (attRes.value.data || []) : [];
+            const allGrades = grdRes.status === 'fulfilled' ? (grdRes.value.data || []) : [];
+
+            // Helper to get ID from potential DBRef or object, with fallbacks
+            const getStdId = (obj) => {
+                if (!obj) return null;
+                if (typeof obj === 'string') return obj;
+                return obj.id || obj._id || (obj['$id'] ? obj['$id'].toString() : null);
+            };
+
+            const getRfid = (obj) => {
+                if (!obj) return null;
+                return obj.rfidUid || obj.rfid_uid || obj.rfid;
+            };
+
+            // 1. Enriched Student Data (GPA & Attendance)
+            const enrichedStudents = students.map(s => {
+                const sId = s.id || s._id;
+                const sRfid = getRfid(s);
+
+                // Calculate GPA - Try matching by ID, then RFID
+                const studentGrades = allGrades.filter(g => {
+                    const gStdId = getStdId(g.student);
+                    const gRfid = getRfid(g.student);
+                    return (gStdId && gStdId === sId) || (sRfid && gRfid === sRfid);
+                });
+
+                let cgpa = 0;
+                if (studentGrades.length > 0) {
+                    const totalPoints = studentGrades.reduce((acc, g) => {
+                        const gp = { 'O': 10, 'A+': 9, 'A': 8, 'B': 7, 'C': 6, 'D': 4 }[g.grade] || 0;
+                        return acc + (gp * (g.credits || 3));
+                    }, 0);
+                    const totalCredits = studentGrades.reduce((acc, g) => acc + (g.credits || 3), 0);
+                    cgpa = totalCredits > 0 ? parseFloat((totalPoints / totalCredits).toFixed(2)) : 0;
+                }
+
+                // Calculate Attendance - Try matching by ID, then RFID
+                const studentAtt = allAttendance.filter(a => {
+                    const aStdId = getStdId(a.student);
+                    const aRfid = getRfid(a.student);
+                    return (aStdId && aStdId === sId) || (sRfid && aRfid === sRfid);
+                });
+
+                let attRate = 0;
+                if (studentAtt.length > 0) {
+                    const present = studentAtt.filter(a => ['P', 'p', 'Present'].includes(a.status)).length;
+                    attRate = Math.round((present / studentAtt.length) * 100);
+                }
+
+                return { ...s, cgpa, attRate };
+            });
+
+            // 2. Section Comparison
+            const secMap = {};
+            allSections.forEach(sec => {
+                if (sec && sec.name) {
+                    secMap[sec.name] = { name: sec.name, attSum: 0, gpaSum: 0, count: 0 };
+                }
+            });
+
+            enrichedStudents.forEach(s => {
+                // Determine section name with better detection
+                let secName = s.sectionName;
+                if (!secName && s.branch && s.year) {
+                    // Try to guess section name if missing (e.g. CSE - Year 4 -> CSE-A)
+                    const guess = `${s.branch}-A`;
+                    if (secMap[guess]) secName = guess;
+                }
+
+                secName = secName || 'Unassigned';
+                if (!secMap[secName]) secMap[secName] = { name: secName, attSum: 0, gpaSum: 0, count: 0 };
+                secMap[secName].attSum += s.attRate;
+                secMap[secName].gpaSum += s.cgpa;
+                secMap[secName].count++;
+            });
+            const secData = Object.values(secMap).map(v => ({
+                name: v.name,
+                attendance: v.count > 0 ? Math.round(v.attSum / v.count) : 0,
+                performance: v.count > 0 ? parseFloat((v.gpaSum / v.count).toFixed(2)) : 0
+            })).sort((a, b) => b.attendance - a.attendance).slice(0, 5);
+
+            // 3. Branch Distribution
+            const branchMap = {};
+            students.forEach(s => {
+                const b = s.branch || 'Other';
+                branchMap[b] = (branchMap[b] || 0) + 1;
+            });
+            const colors = ['var(--accent-primary)', '#7c3aed', '#ec4899', '#f59e0b', '#10b981'];
+            const distData = Object.entries(branchMap).map(([name, value], i) => ({
+                name, value, color: colors[i % colors.length]
+            }));
+
+            // 4. Update All States
+            setStats({
+                totalStudents: students.length,
+                activeSections: allSections.length,
+                totalTeachers: teachers.length,
+                avgAttendance: enrichedStudents.length ? Math.round(enrichedStudents.reduce((acc, s) => acc + s.attRate, 0) / enrichedStudents.length) : 0,
+                topGpa: enrichedStudents.length ? Math.max(...enrichedStudents.map(s => s.cgpa)) : 0
+            });
+
+            setSectionComparison(secData);
+            setDistributionData(distData);
+            setLowAttendanceStudents(enrichedStudents.sort((a, b) => a.attRate - b.attRate).slice(0, 3));
+            setTopPerformers(enrichedStudents.sort((a, b) => {
+                if (b.cgpa !== a.cgpa) return b.cgpa - a.cgpa;
+                return (a.name || '').localeCompare(b.name || '');
+            }).slice(0, 3));
+
+        } catch (error) {
+            console.error("Dashboard calculation error:", error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
 
     useEffect(() => {
-        Promise.all([
-            studentService.getAll(),
-            sectionService.getAll()
-        ]).then(([stdRes, secRes]) => {
-            setStats({
-                totalStudents: stdRes.data?.length || 1240,
-                activeSections: secRes.data?.length || 18,
-                avgAttendance: 88.4,
-                topGpa: 9.8
-            });
-        }).finally(() => setLoading(false));
-    }, []);
+        fetchStatsData();
+    }, [location.pathname]);
+
 
     return (
         <motion.div
@@ -68,10 +418,18 @@ const AdminDashboard = () => {
                     <h2 className="text-4xl font-black text-[var(--text-primary)] uppercase tracking-tighter italic">Intelligence Command</h2>
                     <p className="text-[var(--text-secondary)] text-[10px] font-black uppercase tracking-[0.4em] mt-2 flex items-center gap-2">
                         <ShieldAlert size={14} className="text-[var(--accent-primary)] animate-pulse" />
-                        Global Campus Telemetry • Real-time Stream
+                        Avanthi Global Telemetry • Real-time Stream
                     </p>
                 </div>
                 <div className="flex gap-4">
+                    <button
+                        onClick={() => fetchStatsData(true)}
+                        disabled={refreshing}
+                        className="p-2.5 glass rounded-2xl border-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--accent-primary)] transition-all flex items-center justify-center disabled:opacity-50"
+                        title="Synchronize Data"
+                    >
+                        <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+                    </button>
                     <button
                         onClick={() => setShowBroadcaster(true)}
                         className="px-5 py-2.5 bg-[var(--accent-primary)] hover:brightness-110 text-white rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all shadow-xl shadow-[var(--accent-primary)]/20"
@@ -85,20 +443,24 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            {/* High Level Stats */}
-            <div className="grid grid-cols-4 gap-6">
+            {/* Intelligence Stream Stats */}
+            <div className="grid grid-cols-5 gap-4">
                 {[
-                    { label: 'Total Enrollment', value: stats.totalStudents, icon: Users, trend: '+4.2%' },
-                    { label: 'Active Clusters', value: stats.activeSections, icon: Calendar, trend: 'Synced' },
-                    { label: 'Mean Stability', value: `${stats.avgAttendance}%`, icon: Activity, trend: '+1.8%' },
-                    { label: 'Peak Metric', value: stats.topGpa, icon: TrendingUp, trend: 'Optimal' }
+                    { label: 'Total Students', value: stats.totalStudents, icon: Users, trend: 'Network Live', onClick: () => navigate('/students') },
+                    { label: 'Active Faculty', value: stats.totalTeachers, icon: Users, trend: 'Verified', onClick: () => navigate('/teachers') },
+                    { label: 'Campus Sections', value: stats.activeSections, icon: Calendar, trend: 'Synced', onClick: () => navigate('/sections') },
+                    { label: 'Sync Rate %', value: `${stats.avgAttendance}%`, icon: Activity, trend: 'Operational', onClick: () => setShowAttendance(true) },
+                    { label: 'Intelligence GPA', value: stats.topGpa, icon: TrendingUp, trend: 'Alpha', onClick: () => setShowTopGpa(true) }
                 ].map((s, i) => (
-                    <div key={i} className="glass-card-accent p-6 border-[var(--border-primary)] group hover:scale-[1.02] transition-all">
+                    <div key={i} onClick={s.onClick} className="glass-card-accent p-6 border-[var(--border-primary)] group hover:scale-[1.02] transition-all cursor-pointer hover:border-[var(--accent-primary)]/50">
                         <div className="flex justify-between items-start mb-6">
                             <div className="w-12 h-12 rounded-2xl bg-[var(--accent-primary)]/10 flex items-center justify-center text-[var(--accent-primary)] border border-[var(--accent-primary)]/20 shadow-xl shadow-[var(--accent-primary)]/10">
                                 <s.icon size={24} />
                             </div>
-                            <span className="text-[8px] font-black text-[var(--accent-primary)] bg-[var(--accent-primary)]/10 px-2 py-1 rounded-full border border-[var(--accent-primary)]/20 uppercase tracking-widest leading-none">{s.trend}</span>
+                            <span className="text-[8px] font-black text-[var(--accent-primary)] bg-[var(--accent-primary)]/10 px-2 py-1 rounded-full border border-[var(--accent-primary)]/20 uppercase tracking-widest leading-none flex items-center gap-1">
+                                <span className="w-1 h-1 bg-[var(--accent-primary)] rounded-full animate-pulse" />
+                                {s.trend}
+                            </span>
                         </div>
                         <h3 className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-[0.3em] mb-1">{s.label}</h3>
                         <p className="text-3xl font-black text-[var(--text-primary)] tracking-tighter italic uppercase">{s.value}</p>
@@ -106,13 +468,24 @@ const AdminDashboard = () => {
                 ))}
             </div>
 
+            {/* Technical Stream Debug (Only shows if something is zero to help user) */}
+            {(stats.totalStudents === 0 || stats.activeSections === 0) && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 flex items-center gap-4">
+                    <AlertTriangle className="text-yellow-500" size={20} />
+                    <div>
+                        <p className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">Telemetry Alert: Low Data Density</p>
+                        <p className="text-[9px] text-[var(--text-secondary)] font-bold uppercase tracking-wider mt-0.5">The system is connected but detected 0 records in some streams. Please verify database seeding or click the refresh icon.</p>
+                    </div>
+                </motion.div>
+            )}
+
             <div className="grid grid-cols-3 gap-6">
                 {/* Section Comparison Heatmap */}
                 <div className="col-span-2 glass-card border-[var(--border-primary)] space-y-8">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h3 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tighter">Section Metric Matrix</h3>
-                            <p className="text-[10px] text-[var(--text-secondary)] font-black uppercase tracking-[0.2em] mt-1">Cross-cluster performance analytics</p>
+                            <h3 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tighter">Section Performance Comparison</h3>
+                            <p className="text-[10px] text-[var(--text-secondary)] font-black uppercase tracking-[0.2em] mt-1">Attendance and academic metrics across sections</p>
                         </div>
                         <div className="flex gap-4">
                             <button className="flex items-center gap-2 text-[9px] font-black text-[var(--text-secondary)] uppercase hover:text-[var(--accent-primary)] transition-colors">
@@ -124,7 +497,7 @@ const AdminDashboard = () => {
 
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={sectionComparison} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                            <BarChart key={`bar-${sectionComparison.length}`} data={sectionComparison} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                 <XAxis dataKey="name" stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} axisLine={false} />
                                 <YAxis stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} axisLine={false} />
@@ -144,16 +517,16 @@ const AdminDashboard = () => {
                     <div className="w-full p-8 border-b border-[var(--border-primary)] bg-white/5">
                         <h3 className="text-[10px] font-black text-[var(--text-primary)] uppercase tracking-[0.3em] flex items-center gap-2">
                             <PieChart size={14} className="text-[var(--accent-primary)]" />
-                            Stream Allocation
+                            Department Distribution
                         </h3>
                     </div>
                     <div className="flex-1 w-full h-full flex items-center justify-center min-h-[300px] relative">
                         <div className="absolute inset-0 flex items-center justify-center flex-col z-10">
-                            <p className="text-3xl font-black text-[var(--text-primary)] leading-none italic uppercase">1240</p>
-                            <p className="text-[8px] font-black text-[var(--text-secondary)] uppercase tracking-[0.2em] mt-1">Total Payload</p>
+                            <p className="text-3xl font-black text-[var(--text-primary)] leading-none italic uppercase">{stats.totalStudents}</p>
+                            <p className="text-[8px] font-black text-[var(--text-secondary)] uppercase tracking-[0.2em] mt-1">Total Students</p>
                         </div>
                         <ResponsiveContainer width="100%" height="100%">
-                            <RePie>
+                            <RePie key={`pie-${distributionData.length}`}>
                                 <Pie
                                     data={distributionData}
                                     innerRadius={80}
@@ -177,7 +550,7 @@ const AdminDashboard = () => {
                                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
                                     <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">{d.name}</span>
                                 </div>
-                                <span className="text-[10px] font-black text-[var(--text-primary)]">{((d.value / 1000) * 100).toFixed(0)}%</span>
+                                <span className="text-[10px] font-black text-[var(--text-primary)]">{stats.totalStudents > 0 ? ((d.value / stats.totalStudents) * 100).toFixed(0) : 0}%</span>
                             </div>
                         ))}
                     </div>
@@ -190,17 +563,13 @@ const AdminDashboard = () => {
                     <div className="flex items-center justify-between">
                         <h3 className="text-[11px] font-black text-red-500 uppercase tracking-[0.3em] flex items-center gap-2 underline underline-offset-8 decoration-red-500/30">
                             <AlertTriangle size={16} />
-                            Critical Attendance Deviations
+                            Low Attendance Alerts
                         </h3>
                         <span className="px-3 py-1 bg-red-500/20 text-red-500 rounded-full text-[8px] font-black uppercase">Low Sync Detected</span>
                     </div>
 
                     <div className="space-y-3">
-                        {[
-                            { name: 'Marcus Holloway', section: 'CSE-A', rate: '68%', id: 'S-712' },
-                            { name: 'Elena Fisher', section: 'ECE-B', rate: '72%', id: 'S-844' },
-                            { name: 'Victor Sullivan', section: 'ME-A', rate: '64%', id: 'S-209' }
-                        ].map((s, i) => (
+                        {lowAttendanceStudents.length > 0 ? lowAttendanceStudents.map((s, i) => (
                             <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-black/40 border border-white/5 hover:border-red-500/30 transition-all group">
                                 <div className="flex items-center gap-4">
                                     <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20 font-black text-xs">
@@ -208,15 +577,17 @@ const AdminDashboard = () => {
                                     </div>
                                     <div>
                                         <p className="text-sm font-black text-[var(--text-primary)] uppercase tracking-tight">{s.name}</p>
-                                        <p className="text-[9px] text-[var(--text-secondary)] font-bold italic opacity-60">{s.id} • {s.section}</p>
+                                        <p className="text-[9px] text-[var(--text-secondary)] font-bold italic opacity-60">{s.rollNo} • {s.sectionName || 'No Section'}</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-lg font-black text-red-500 tracking-tighter leading-none mb-1">{s.rate}</p>
+                                    <p className="text-lg font-black text-red-500 tracking-tighter leading-none mb-1">{s.attRate}%</p>
                                     <button className="text-[8px] font-black text-[var(--accent-primary)] uppercase hover:underline">Issue Warning</button>
                                 </div>
                             </div>
-                        ))}
+                        )) : (
+                            <div className="text-center py-10 opacity-30 text-[10px] font-black uppercase tracking-widest">No Alerts Detected</div>
+                        )}
                     </div>
                 </div>
 
@@ -225,31 +596,29 @@ const AdminDashboard = () => {
                     <div className="flex items-center justify-between">
                         <h3 className="text-[11px] font-black text-[var(--accent-primary)] uppercase tracking-[0.3em] flex items-center gap-2">
                             <ArrowUpRight size={16} />
-                            Academic Pinnacle Leaders
+                            Top Performing Students
                         </h3>
                         <CheckCircle size={16} className="text-emerald-500 opacity-60" />
                     </div>
 
                     <div className="space-y-3">
-                        {[
-                            { name: 'Lara Croft', section: 'CSE-A', gpa: '9.82', rank: '01' },
-                            { name: 'Nathan Drake', section: 'CSE-B', gpa: '9.65', rank: '02' },
-                            { name: 'Aloy Sobeck', section: 'ECE-A', gpa: '9.54', rank: '03' }
-                        ].map((s, i) => (
+                        {topPerformers.length > 0 ? topPerformers.map((s, i) => (
                             <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-[var(--accent-primary)]/5 border border-[var(--accent-primary)]/10 hover:border-[var(--accent-primary)]/40 transition-all group">
                                 <div className="flex items-center gap-4">
-                                    <span className="text-2xl font-black text-[var(--accent-primary)] opacity-20 group-hover:opacity-40 transition-opacity italic">{s.rank}</span>
+                                    <span className="text-2xl font-black text-[var(--accent-primary)] opacity-20 group-hover:opacity-40 transition-opacity italic">{String(i + 1).padStart(2, '0')}</span>
                                     <div>
                                         <p className="text-sm font-black text-[var(--text-primary)] uppercase tracking-tight">{s.name}</p>
-                                        <p className="text-[9px] text-[var(--text-secondary)] font-bold italic opacity-60">{s.section} • Verified</p>
+                                        <p className="text-[9px] text-[var(--text-secondary)] font-bold italic opacity-60">{s.sectionName || s.branch} • Verified</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-2xl font-black text-[var(--text-primary)] tracking-tighter leading-none italic">{s.gpa}</p>
+                                    <p className="text-2xl font-black text-[var(--text-primary)] tracking-tighter leading-none italic">{s.cgpa || '0.0'}</p>
                                     <p className="text-[8px] font-black text-[var(--accent-primary)] uppercase tracking-widest mt-1">GPA PROTOCOL</p>
                                 </div>
                             </div>
-                        ))}
+                        )) : (
+                            <div className="text-center py-10 opacity-30 text-[10px] font-black uppercase tracking-widest">No Leaderboard Data</div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -258,6 +627,19 @@ const AdminDashboard = () => {
                 isOpen={showBroadcaster}
                 onClose={() => setShowBroadcaster(false)}
             />
+
+            <AnimatePresence>
+                {showTopGpa && <TopGpaModal onClose={() => setShowTopGpa(false)} />}
+                {showAttendance && <AttendanceBatchModal onClose={() => setShowAttendance(false)} />}
+            </AnimatePresence>
+            {refreshing && (
+                <div className="fixed bottom-10 right-10 z-50">
+                    <div className="glass px-6 py-3 rounded-2xl border-[var(--accent-primary)]/30 flex items-center gap-4 shadow-2xl animate-bounce">
+                        <RefreshCw size={16} className="text-[var(--accent-primary)] animate-spin" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]">Syncing Database...</span>
+                    </div>
+                </div>
+            )}
         </motion.div>
     );
 };

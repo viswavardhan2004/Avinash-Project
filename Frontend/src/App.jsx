@@ -11,9 +11,12 @@ import Profile from './pages/Profile';
 import Queries from './pages/Queries';
 import SectionManagement from './pages/admin/SectionManagement';
 import AdminDashboard from './pages/admin/Dashboard';
+import Teachers from './pages/admin/Teachers';
 import ResourceHub from './pages/ResourceHub';
 import LoginPage from './pages/auth/LoginPage';
 import SignupPage from './pages/auth/SignupPage';
+import ForgotPassword from './pages/auth/ForgotPassword';
+import ResetPassword from './pages/auth/ResetPassword';
 import { useAuth } from './services/AuthContext';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -32,6 +35,8 @@ function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/"
         element={
@@ -51,6 +56,11 @@ function App() {
         <Route path="sections" element={
           <ProtectedRoute allowedRoles={['ADMIN']}>
             <SectionManagement />
+          </ProtectedRoute>
+        } />
+        <Route path="teachers" element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <Teachers />
           </ProtectedRoute>
         } />
         <Route path="attendance" element={<Attendance />} />

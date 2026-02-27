@@ -1,12 +1,22 @@
 import axios from 'axios';
 
-const BASE_URL = localStorage.getItem('API_URL') || 'https://mycampussmartdashboardsystem.onrender.com/api';
+const getBaseUrl = () => {
+    const stored = localStorage.getItem('API_URL');
+    if (stored && stored.includes('8080')) return stored;
+    return 'http://localhost:8080/api';
+};
 
 const api = axios.create({
-    baseURL: BASE_URL,
+    baseURL: getBaseUrl(),
     headers: {
         'Content-Type': 'application/json',
     },
+});
+
+// Add a request interceptor to ensure the baseURL is always fresh if needed
+api.interceptors.request.use((config) => {
+    config.baseURL = getBaseUrl();
+    return config;
 });
 
 export const submissionService = {
@@ -25,7 +35,17 @@ export const studentService = {
     getAll: () => api.get('/students'),
     getById: (id) => api.get(`/students/${id}`),
     create: (data) => api.post('/students', data),
+    update: (id, data) => api.put(`/students/${id}`, data),
+    remove: (id) => api.delete(`/students/${id}`),
     assignToSection: (studentId, sectionId) => api.put(`/students/${studentId}/section/${sectionId}`),
+};
+
+export const teacherService = {
+    getAll: () => api.get('/teachers'),
+    getById: (id) => api.get(`/teachers/${id}`),
+    create: (data) => api.post('/teachers', data),
+    update: (id, data) => api.put(`/teachers/${id}`, data),
+    remove: (id) => api.delete(`/teachers/${id}`),
 };
 
 export const sectionService = {
@@ -65,6 +85,7 @@ export const attendanceService = {
 };
 
 export const gradeService = {
+    getAll: () => api.get('/grades'),
     getByRfid: (rfidUid) => api.get(`/grades/${rfidUid}`),
     add: (rfidUid, data) => api.post(`/grades?rfidUid=${rfidUid}`, data),
     calculateGPA: (rfidUid) => api.get(`/grades/gpa/${rfidUid}`),

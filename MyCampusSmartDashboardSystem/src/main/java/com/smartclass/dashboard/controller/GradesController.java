@@ -11,6 +11,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/grades")
+@CrossOrigin(origins = "*")
 public class GradesController {
 
     private final GradesRepository gradesRepository;
@@ -20,6 +21,14 @@ public class GradesController {
                             StudentRepository studentRepository) {
         this.gradesRepository = gradesRepository;
         this.studentRepository = studentRepository;
+    }
+
+    // =========================
+    // GET ALL GRADES
+    // =========================
+    @GetMapping
+    public List<Grades> getAllGrades() {
+        return gradesRepository.findAll();
     }
 
     // =========================
