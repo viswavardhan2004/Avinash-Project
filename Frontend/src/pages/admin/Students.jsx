@@ -3,12 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     UserPlus, Search, Edit2, Trash2, X, Save, Shield,
     AlertTriangle, Mail, Lock, GraduationCap, BookOpen,
-    Hash, User, ChevronRight, BarChart2
+    Hash, User, ChevronRight, BarChart2, Layers
 } from 'lucide-react';
 import { studentService, gradeService, attendanceService } from '../../services/api';
 import IDCard from '../../components/IDCard';
 
-const EMPTY_FORM = { name: '', rollNo: '', rfidUid: '', branch: '', year: '', email: '', password: '', joiningYear: '', passingYear: '' };
+const EMPTY_FORM = { name: '', rollNo: '', rfidUid: '', branch: '', year: '', email: '', password: '', joiningYear: '', passingYear: '', sectionName: '', cgpa: '' };
 
 /* ─── Add / Edit Modal ──────────────────────────────────── */
 const StudentModal = ({ student, onClose, onSave }) => {
@@ -22,7 +22,13 @@ const StudentModal = ({ student, onClose, onSave }) => {
         if (!form.name || !form.rollNo) return alert('Name and Roll No are required');
         setLoading(true);
         try {
-            await onSave({ ...form, year: parseInt(form.year) || 1, joiningYear: parseInt(form.joiningYear) || 0, passingYear: parseInt(form.passingYear) || 0 });
+            await onSave({
+                ...form,
+                year: parseInt(form.year) || 1,
+                joiningYear: parseInt(form.joiningYear) || 0,
+                passingYear: parseInt(form.passingYear) || 0,
+                cgpa: parseFloat(form.cgpa) || 0
+            });
             onClose();
         } catch (err) {
             alert(err.response?.data?.message || 'Operation failed. Check if RFID UID is unique.');
@@ -39,6 +45,8 @@ const StudentModal = ({ student, onClose, onSave }) => {
         { label: 'Joining Year', name: 'joiningYear', type: 'number', placeholder: 'e.g. 2022', icon: GraduationCap },
         { label: 'Passing Year', name: 'passingYear', type: 'number', placeholder: 'e.g. 2026', icon: GraduationCap },
         { label: 'RFID UID', name: 'rfidUid', type: 'text', placeholder: 'RFID card UID', icon: Shield },
+        { label: 'Section Name', name: 'sectionName', type: 'text', placeholder: 'e.g. CSE-A', icon: Layers },
+        { label: 'Current CGPA', name: 'cgpa', type: 'number', placeholder: 'e.g. 9.5', icon: BarChart2 },
         { label: 'Email Address', name: 'email', type: 'email', placeholder: 'student@example.com', icon: Mail },
         { label: student ? 'New Password (leave blank to keep)' : 'Password', name: 'password', type: 'password', placeholder: '••••••••', icon: Lock },
     ];
@@ -139,9 +147,9 @@ const StudentDetailPanel = ({ student, onClose, onEdit }) => {
         }).finally(() => setLoadingDetails(false));
     }, [student]);
 
-    const cgpa = attendance?.gpa ?? (grades.length > 0
+    const cgpa = student.cgpa > 0 ? student.cgpa : (attendance?.gpa ?? (grades.length > 0
         ? (grades.reduce((sum, g) => sum + (g.gpa || 0), 0) / grades.length).toFixed(2)
-        : 'N/A');
+        : 'N/A'));
 
     const yearLabels = { 1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year' };
 

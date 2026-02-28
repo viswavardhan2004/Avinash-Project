@@ -101,7 +101,9 @@ export const timetableService = {
     getAll: () => api.get('/timetable'),
     getBySection: (sectionId) => api.get(`/timetable/section/${sectionId}`),
     getByTeacher: (teacherId) => api.get(`/timetable/teacher/${teacherId}`),
-    createSlot: (data) => api.post('/timetable/slots', data),
+    createSlot: (data) => api.post('/timetable', data),
+    updateSlot: (id, data) => api.put(`/timetable/${id}`, data),
+    deleteSlot: (id) => api.delete(`/timetable/${id}`),
 };
 
 export default api;

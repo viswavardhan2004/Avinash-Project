@@ -57,10 +57,10 @@ const Dashboard = () => {
     }, []);
 
     const stats = [
-        { label: 'Network Reach', value: studentCount, icon: Users, trend: '+12%' },
-        { label: 'Active Slots', value: '8', icon: Calendar, trend: 'Optimal' },
-        { label: 'Knowledge Base', value: '15.6k', icon: Library, trend: '+2.4k' },
-        { label: 'Metric Avg', value: 'A-', icon: GraduationCap, trend: 'Stable' },
+        { label: 'Campus Students', value: studentCount, icon: Users, trend: 'Network Active' },
+        { label: 'Today\'s Classes', value: classes.length, icon: Calendar, trend: 'Scheduled' },
+        { label: 'Sync Rate', value: `${attendanceWarning ? Math.round(Number(attendanceWarning)) : 100}%`, icon: Activity, trend: attendanceWarning ? 'Critical' : 'Optimal' },
+        { label: 'Current CGPA', value: gradeData.length > 0 ? gradeData[gradeData.length - 1].gpa : 'N/A', icon: GraduationCap, trend: 'Protocol Stable' },
     ];
 
     if (loading) {

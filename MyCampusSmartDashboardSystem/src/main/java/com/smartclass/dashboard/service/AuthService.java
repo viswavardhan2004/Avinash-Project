@@ -29,9 +29,12 @@ public class AuthService {
         return userRepository.save(user);
     }
 
-    public User login(String username, String password) {
-        return userRepository.findByUsername(username)
-                .filter(u -> u.getPassword().equals(password))
+    public User login(String identifier, String password) {
+        Optional<User> userOpt = userRepository.findByUsername(identifier);
+        if (userOpt.isEmpty()) {
+            userOpt = userRepository.findByEmail(identifier);
+        }
+        return userOpt.filter(u -> u.getPassword().equals(password))
                 .orElseThrow(() -> new RuntimeException("Invalid username or password"));
     }
 

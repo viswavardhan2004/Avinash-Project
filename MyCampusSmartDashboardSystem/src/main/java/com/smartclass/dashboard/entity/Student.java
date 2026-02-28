@@ -27,6 +27,7 @@ public class Student {
     private int passingYear;
     private String sectionId;
     private String sectionName;
+    private double cgpa;
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -63,4 +64,7 @@ public class Student {
 
     public String getSectionName() { return sectionName; }
     public void setSectionName(String sectionName) { this.sectionName = sectionName; }
+
+    public double getCgpa() { return cgpa; }
+    public void setCgpa(double cgpa) { this.cgpa = cgpa; }
 }

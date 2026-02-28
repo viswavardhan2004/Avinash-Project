@@ -53,8 +53,8 @@ const TopGpaModal = ({ onClose }) => {
                     return (gStdId && gStdId === sId) || (sRfid && gRfid === sRfid);
                 });
 
-                let cgpa = 0;
-                if (studentGrades.length > 0) {
+                let cgpa = s.cgpa || 0;
+                if (cgpa === 0 && studentGrades.length > 0) {
                     const totalPoints = studentGrades.reduce((acc, g) => {
                         const gp = { 'O': 10, 'A+': 9, 'A': 8, 'B': 7, 'C': 6, 'D': 4 }[g.grade] || 0;
                         return acc + (gp * (g.credits || 3));
@@ -310,8 +310,8 @@ const AdminDashboard = () => {
                     return (gStdId && gStdId === sId) || (sRfid && gRfid === sRfid);
                 });
 
-                let cgpa = 0;
-                if (studentGrades.length > 0) {
+                let cgpa = s.cgpa || 0;
+                if (cgpa === 0 && studentGrades.length > 0) {
                     const totalPoints = studentGrades.reduce((acc, g) => {
                         const gp = { 'O': 10, 'A+': 9, 'A': 8, 'B': 7, 'C': 6, 'D': 4 }[g.grade] || 0;
                         return acc + (gp * (g.credits || 3));
