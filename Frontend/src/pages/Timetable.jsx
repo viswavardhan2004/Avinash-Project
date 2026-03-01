@@ -4,10 +4,182 @@ import {
     Clock, MapPin, User, Info, Calendar, Plus, Filter,
     ShieldCheck, Zap, X, Save, Edit2, Trash2, BookOpen
 } from 'lucide-react';
-import { timetableService, sectionService, teacherService, studentService } from '../services/api';
+import { timetableService, sectionService, teacherService, studentService, attendanceService } from '../services/api';
 import { useAuth } from '../services/AuthContext';
 import { TableSkeleton } from '../components/Skeletons';
 import toast from 'react-hot-toast';
+
+const AttendanceSessionModal = ({ slot, onClose }) => {
+    const [students, setStudents] = useState([]);
+    const [attendance, setAttendance] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [mode, setMode] = useState('MANUAL'); // 'MANUAL' or 'RFID'
+    const [saving, setSaving] = useState(false);
+    const [rfidBuffer, setRfidBuffer] = useState('');
+
+    useEffect(() => {
+        const fetchStudents = async () => {
+            try {
+                const res = await studentService.getAll();
+                const allStudents = res.data || [];
+                const sectionStudents = allStudents.filter(s =>
+                    (s.sectionId === slot.sectionId) ||
+                    (s.sectionName === slot.section)
+                );
+                setStudents(sectionStudents);
+
+                const attMap = {};
+                sectionStudents.forEach(s => {
+                    const id = s.id || s._id;
+                    if (id) attMap[id] = 'A';
+                });
+                setAttendance(attMap);
+            } catch (err) {
+                toast.error('Failed to load students for this section');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStudents();
+    }, [slot]);
+
+    useEffect(() => {
+        if (mode !== 'RFID') return;
+
+        const handleKeyDown = (e) => {
+            if (e.key === 'Enter') {
+                if (rfidBuffer.trim() !== '') {
+                    handleRfidScan(rfidBuffer.trim());
+                    setRfidBuffer('');
+                }
+            } else if (e.key.length === 1) {
+                setRfidBuffer(prev => prev + e.key);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [mode, rfidBuffer, students]);
+
+    const handleRfidScan = async (uid) => {
+        const student = students.find(s => (s.rfidUid || s.rfid_uid || s.rfid) === uid);
+        if (student) {
+            const sid = student.id || student._id;
+            setAttendance(prev => ({ ...prev, [sid]: 'P' }));
+            toast.success(`${student.name} marked Present`);
+            try {
+                await attendanceService.markRfid(uid, slot.subject, 'P');
+            } catch (e) {
+                // Silently continue for RFID mode flow
+            }
+        } else {
+            toast.error(`Unknown RFID Card: ${uid}`);
+        }
+    };
+
+    const toggleAttendance = (studentId) => {
+        setAttendance(prev => ({
+            ...prev,
+            [studentId]: prev[studentId] === 'P' ? 'A' : 'P'
+        }));
+    };
+
+    const submitManualAttendance = async () => {
+        setSaving(true);
+        try {
+            const promises = Object.entries(attendance).map(([studentId, status]) => {
+                return attendanceService.markManual({
+                    studentId,
+                    subject: slot.subject,
+                    status
+                });
+            });
+            await Promise.all(promises);
+            toast.success('Attendance submitted successfully');
+            onClose();
+        } catch (err) {
+            const errorMsg = err.response?.data?.message || 'Failed to submit attendance';
+            toast.error(errorMsg);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass-card-accent w-full max-w-2xl p-8 border-[var(--border-primary)] relative max-h-[90vh] flex flex-col shadow-[0_0_100px_rgba(var(--accent-primary-rgb),0.2)]">
+                <button onClick={onClose} className="absolute right-6 top-6 text-[var(--text-secondary)] hover:text-white transition-colors">
+                    <X size={24} />
+                </button>
+
+                <div className="mb-6 flex-shrink-0">
+                    <h2 className="text-2xl font-black text-[var(--text-primary)] uppercase tracking-tighter italic">Mark Attendance</h2>
+                    <p className="text-[10px] text-[var(--text-secondary)] font-black uppercase tracking-[0.3em] mt-1">{slot.subject} • {slot.section}</p>
+
+                    <div className="mt-6 flex gap-3">
+                        <button onClick={() => setMode('MANUAL')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'MANUAL' ? 'bg-[var(--accent-primary)] text-white shadow-[0_5px_15px_rgba(255,100,0,0.2)]' : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'}`}>Manual Roll Call</button>
+                        <button onClick={() => setMode('RFID')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'RFID' ? 'bg-emerald-500 text-white shadow-[0_5px_15px_rgba(16,185,129,0.2)]' : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'}`}>
+                            <Zap size={14} className={mode === 'RFID' ? 'animate-pulse' : ''} /> RFID Scanner Mode
+                        </button>
+                    </div>
+                </div>
+
+                {loading ? (
+                    <div className="flex-1 flex items-center justify-center py-10">
+                        <div className="w-8 h-8 rounded-full border-4 border-[var(--accent-primary)] border-t-transparent animate-spin" />
+                    </div>
+                ) : (
+                    <>
+                        {mode === 'RFID' && (
+                            <div className="flex flex-col items-center justify-center border-2 border-dashed border-emerald-500/30 rounded-2xl bg-emerald-500/5 mb-6 p-10 flex-shrink-0">
+                                <Zap size={48} className="text-emerald-500 animate-pulse mb-6" />
+                                <p className="text-lg font-black text-white uppercase tracking-widest text-center">Ready for Scan</p>
+                                <p className="text-[10px] text-emerald-500/60 font-black uppercase tracking-[0.3em] mt-2 text-center">Please tap student RFID card on the reader to mark 'Present'<br />(Listening for scanner input globally...)</p>
+                                <input autoFocus className="opacity-0 absolute w-0 h-0" />
+                            </div>
+                        )}
+
+                        <div className={`flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3 ${mode === 'RFID' ? 'hidden' : ''}`}>
+                            {students.length === 0 ? (
+                                <p className="text-[10px] text-center uppercase tracking-widest text-[var(--text-secondary)] opacity-50 py-10 font-black italic">No students allocated to this section.</p>
+                            ) : (
+                                students.map(s => {
+                                    const sid = s.id || s._id;
+                                    const isPresent = attendance[sid] === 'P';
+                                    return (
+                                        <div key={sid} className={`flex items-center justify-between p-4 rounded-xl border transition-all ${isPresent ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/5 border-red-500/20'}`}>
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-xs shadow-lg ${isPresent ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                    {s.name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <p className="font-black text-white text-[12px] uppercase italic tracking-tight">{s.name}</p>
+                                                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mt-1">{s.rollNo} • RFID: {s.rfidUid || s.rfid_uid || s.rfid || 'N/A'}</p>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => toggleAttendance(sid)} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${isPresent ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:brightness-110' : 'bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white'}`}>
+                                                {isPresent ? 'PRESENT' : 'ABSENT'}
+                                            </button>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        {mode === 'MANUAL' && students.length > 0 && (
+                            <div className="pt-6 border-t border-white/10 mt-2 flex-shrink-0">
+                                <button onClick={submitManualAttendance} disabled={saving} className="w-full py-4 bg-[var(--accent-primary)] text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-[0_10px_30px_rgba(var(--accent-primary-rgb),0.3)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-50">
+                                    {saving ? 'Transmitting Data...' : 'Submit Session Attendance'}
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </motion.div>
+        </div>
+    );
+};
+
 
 const TimetableModal = ({ slot, onClose, onSave }) => {
     const [form, setForm] = useState(
@@ -154,6 +326,7 @@ const Timetable = () => {
     const [selectedSection, setSelectedSection] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSlot, setEditingSlot] = useState(null);
+    const [selectedSlotForAttendance, setSelectedSlotForAttendance] = useState(null);
 
     const fetchTimetable = async () => {
         setLoading(true);
@@ -277,7 +450,15 @@ const Timetable = () => {
                             </div>
                             <div className="grid grid-cols-1 gap-6">
                                 {daySlots.length > 0 ? daySlots.map((item, i) => (
-                                    <motion.div key={i} whileHover={{ x: 10 }} className="glass-card-accent border-[var(--border-primary)] p-0 flex flex-col lg:flex-row lg:items-center gap-8 relative group overflow-hidden">
+                                    <motion.div key={i} whileHover={{ x: 10 }}
+                                        onClick={(e) => {
+                                            if (user.role === 'TEACHER') {
+                                                if (e.target.closest('button')) return; // ignore edit/delete clicks
+                                                setSelectedSlotForAttendance(item);
+                                            }
+                                        }}
+                                        className={`glass-card-accent border-[var(--border-primary)] p-0 flex flex-col lg:flex-row lg:items-center gap-8 relative group overflow-hidden ${user.role === 'TEACHER' ? 'cursor-pointer hover:border-[var(--accent-primary)]/50' : ''}`}
+                                    >
                                         <div className="absolute left-0 top-0 w-1.5 h-full bg-[var(--accent-primary)] opacity-0 group-hover:opacity-100 transition-all duration-500" />
 
                                         <div className="flex flex-col items-center justify-center p-8 bg-white/5 min-w-[200px] border-r border-white/5 group-hover:bg-[var(--accent-primary)]/10 transition-colors">
@@ -341,6 +522,7 @@ const Timetable = () => {
 
             <AnimatePresence>
                 {isModalOpen && <TimetableModal slot={editingSlot} onClose={() => setIsModalOpen(false)} onSave={handleSave} />}
+                {selectedSlotForAttendance && <AttendanceSessionModal slot={selectedSlotForAttendance} onClose={() => setSelectedSlotForAttendance(null)} />}
             </AnimatePresence>
         </motion.div>
     );

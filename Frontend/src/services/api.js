@@ -88,6 +88,7 @@ export const attendanceService = {
     markRfid: (rfidUid, subject, status) =>
         api.post(`/attendance/mark-rfid?rfidUid=${rfidUid}&subject=${subject}&status=${status}`),
     markManual: (data) => api.post('/attendance/mark-manual', data),
+    adminUpdate: (data) => api.post('/attendance/admin-update', data),
     getPercentage: (rfidUid, subject) =>
         api.get(`/attendance/percentage?rfidUid=${rfidUid}&subject=${subject}`),
 };

@@ -387,10 +387,10 @@ const Dashboard = () => {
             <div className="space-y-6">
                 <h2 className="text-xl md:text-2xl font-black text-[var(--text-primary)] uppercase tracking-tighter italic border-l-4 border-orange-500 pl-4 md:pl-6 ml-4">Authorities Registry</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
-                    <AuthorityCard role="Mentor" name="Smt. Lakshmi Devi" title="Assistant Professor" school="Avanthi Institute" img="https://i.pravatar.cc/150?u=lakshmi" />
-                    <AuthorityCard role="Head of Dept" name="Dr. Srinivas Rao" title="Associate Professor" school="Avanthi Institute" img="https://i.pravatar.cc/150?u=srinivas" />
-                    <AuthorityCard role="Head of School" name="Dr. Prabhakar Reddy" title="Professor" school="Avanthi Institute" img="https://i.pravatar.cc/150?u=prabhakar" />
-                    <AuthorityCard role="Head of Faculty" name="Dr. Anitha Kumari" title="Dean" school="Avanthi Institute" img="https://i.pravatar.cc/150?u=anitha" />
+                    <AuthorityCard role="Mentor" name="Smt. Lakshmi Devi" title="Assistant Professor" school="Avanthi Institute" img="/authorities/mentor.png" />
+                    <AuthorityCard role="Head of Dept" name="Dr. Srinivas Rao" title="Associate Professor" school="Avanthi Institute" img="/authorities/dean.png" />
+                    <AuthorityCard role="Head of School" name="Dr. Prabhakar Reddy" title="Professor" school="Avanthi Institute" img="/authorities/principal.png" />
+                    <AuthorityCard role="Head of Faculty" name="Dr. Anitha Kumari" title="Dean" school="Avanthi Institute" img="/authorities/hod.png" />
                 </div>
             </div>
         </motion.div>

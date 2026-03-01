@@ -82,17 +82,26 @@ const Attendance = () => {
 
     const handleManualMark = async (student, status) => {
         try {
-            await attendanceService.markManual({
-                rfidUid: student.rfidUid,
-                subject: activeSection.subject,
-                status: status,
-                date: new Date().toISOString().split('T')[0]
-            });
+            if (user.role === 'ADMIN') {
+                await attendanceService.adminUpdate({
+                    studentId: student.id,
+                    subject: activeSection.subject,
+                    status: status,
+                    date: new Date().toISOString().split('T')[0]
+                });
+            } else {
+                await attendanceService.markManual({
+                    studentId: student.id,
+                    subject: activeSection.subject,
+                    status: status,
+                    date: new Date().toISOString().split('T')[0]
+                });
+            }
             setMarkingStatus(prev => ({ ...prev, [student.id]: status }));
-            toast.success(`${student.name} • Protocol ${status === 'P' ? 'PRESENT' : 'ABSENT'}`);
+            toast.success(`${student.name} • Protocol ${status === 'P' ? 'PRESENT' : 'ABSENT'} ${user.role === 'ADMIN' ? '(OVERRIDE)' : ''}`);
             fetchAttendance();
         } catch (error) {
-            toast.error("Transmission Error");
+            toast.error(error.response?.data?.message || "Transmission Error");
         }
     };
 

@@ -42,7 +42,7 @@ public class AttendanceController {
     ) {
         Student student = studentRepository.findByRfidUid(rfidUid);
         if (student == null) throw new StudentNotFoundException("Student not found for RFID: " + rfidUid);
-        return saveOrUpdateAttendance(student, subject, status);
+        return saveOrUpdateAttendance(student, subject, status, false);
     }
 
     // =========================
@@ -56,10 +56,22 @@ public class AttendanceController {
         char status = (statusStr != null && !statusStr.isEmpty()) ? statusStr.charAt(0) : 'P';
 
         Student student = studentRepository.findById(studentId).orElseThrow(() -> new StudentNotFoundException("Student ID not found: " + studentId));
-        return saveOrUpdateAttendance(student, subject, status);
+        return saveOrUpdateAttendance(student, subject, status, false);
+    }
+    
+    // Admin Override Endpoint
+    @PostMapping("/admin-update")
+    public Attendance adminUpdateAttendance(@RequestBody Map<String, Object> data) {
+        String studentId = (String) data.get("studentId");
+        String subject = (String) data.get("subject");
+        String statusStr = (String) data.get("status");
+        char status = (statusStr != null && !statusStr.isEmpty()) ? statusStr.charAt(0) : 'P';
+
+        Student student = studentRepository.findById(studentId).orElseThrow(() -> new StudentNotFoundException("Student ID not found: " + studentId));
+        return saveOrUpdateAttendance(student, subject, status, true);
     }
 
-    private Attendance saveOrUpdateAttendance(Student student, String subject, char status) {
+    private Attendance saveOrUpdateAttendance(Student student, String subject, char status, boolean isAdmin) {
         LocalDate today = LocalDate.now();
         List<Attendance> existing = attendanceRepository.findByStudentAndSubject(student, subject);
         
@@ -67,7 +79,16 @@ public class AttendanceController {
         Attendance record = existing.stream()
                 .filter(a -> a.getDate().equals(today))
                 .findFirst()
-                .orElse(new Attendance());
+                .orElse(null);
+
+        if (record != null) {
+            if (!isAdmin) {
+                // If it already exists and this is not an admin override, throw exception
+                throw new AttendanceAlreadyMarkedException("Attendance for " + student.getName() + " in " + subject + " is already marked for today.");
+            }
+        } else {
+            record = new Attendance();
+        }
 
         record.setStudent(student);
         record.setSubject(subject);
