@@ -87,10 +87,10 @@ const Profile = () => {
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[var(--accent-primary)]/20 to-transparent" />
                             <div className="w-24 h-24 rounded-3xl bg-[var(--accent-primary)]/10 p-1 border border-[var(--accent-primary)]/30 group-hover:scale-110 transition-transform duration-500">
                                 <div className="w-full h-full rounded-2xl bg-black flex items-center justify-center text-[var(--accent-primary)] text-4xl font-black">
-                                    {user?.name?.charAt(0)?.toUpperCase() || '?'}
+                                    {profileData?.name?.charAt(0)?.toUpperCase() || user?.name?.charAt(0)?.toUpperCase() || '?'}
                                 </div>
                             </div>
-                            <h3 className="mt-6 text-xl font-black text-[var(--text-primary)] tracking-tight">{user?.name || user?.username}</h3>
+                            <h3 className="mt-6 text-xl font-black text-[var(--text-primary)] tracking-tight uppercase">{profileData?.name || user?.name || user?.username}</h3>
                             <p className="text-[10px] text-[var(--accent-primary)] font-black uppercase tracking-[0.3em]">{user?.role}</p>
 
                             <div className="mt-8 flex flex-col w-full px-6 gap-3">

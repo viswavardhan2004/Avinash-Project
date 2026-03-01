@@ -44,4 +44,35 @@ public class LibraryServiceImpl implements LibraryService {
         issue.setReturnDate(LocalDate.now());
         return issueRepository.save(issue);
     }
+
+    @Override
+    public List<LibraryIssue> getIssuesByStudent(String studentId) {
+        return issueRepository.findByStudentId(studentId);
+    }
+
+    @Override
+    public List<LibraryIssue> getAllIssues() {
+        return issueRepository.findAll();
+    }
+
+    @Override
+    public LibraryBook updateBook(String id, LibraryBook book) {
+        LibraryBook existing = bookRepository.findById(id).orElseThrow();
+        existing.setTitle(book.getTitle());
+        existing.setAuthor(book.getAuthor());
+        existing.setCategory(book.getCategory());
+        existing.setTotalCopies(book.getTotalCopies());
+        existing.setAvailableCopies(book.getAvailableCopies());
+        return bookRepository.save(existing);
+    }
+
+    @Override
+    public void deleteBook(String id) {
+        bookRepository.deleteById(id);
+    }
+
+    @Override
+    public void deleteIssue(String id) {
+        issueRepository.deleteById(id);
+    }
 }

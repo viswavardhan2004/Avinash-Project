@@ -1,136 +1,206 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Send, Search, User, Clock, CheckCircle, Info, Filter } from 'lucide-react';
+import {
+    MessageSquare, Send, Search, User, Clock, CheckCircle,
+    ShieldAlert, Check, X, Filter, Activity, UserCheck
+} from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuth } from '../services/AuthContext';
+import { queryService } from '../services/api';
 
 const Queries = () => {
-    const [query, setQuery] = useState('');
-    const [queries, setQueries] = useState([
-        { id: 1, text: 'Regarding DBMS Normalization assignment - can we use BCNF?', status: 'Resolved', date: '2h ago', response: 'Yes, BCNF is preferred.' },
-        { id: 2, text: 'Query about RFID synchronization issues in main hall.', status: 'Pending', date: '5h ago', response: null }
-    ]);
+    const { user } = useAuth();
+    const [queries, setQueries] = useState([]);
+    const [newQuery, setNewQuery] = useState({ subject: '', content: '' });
+    const [responseInput, setResponseInput] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [filterStatus, setFilterStatus] = useState('All');
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        if (!query.trim()) return;
-
-        const newQuery = {
-            id: Date.now(),
-            text: query,
-            status: 'Pending',
-            date: 'Just now',
-            response: null
-        };
-
-        toast.promise(
-            new Promise(resolve => setTimeout(resolve, 1000)),
-            {
-                loading: 'Transmitting Signal...',
-                success: 'Query Synchronized: Awaiting peer resolution.',
-                error: 'Transmission Failure.',
+    const fetchQueries = async () => {
+        setLoading(true);
+        try {
+            let res;
+            if (user.role === 'ADMIN') {
+                res = await queryService.getAll();
+            } else {
+                res = await queryService.getBySender(user.username || user.email);
             }
-        );
-
-        setQueries([newQuery, ...queries]);
-        setQuery('');
+            setQueries(res.data || []);
+        } catch (error) {
+            toast.error("Failed to sync query stream");
+        } finally {
+            setLoading(false);
+        }
     };
 
+    useEffect(() => {
+        fetchQueries();
+    }, [user]);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!newQuery.content.trim()) return;
+
+        try {
+            await queryService.create({
+                ...newQuery,
+                senderId: user.username || user.email,
+                senderName: user.name,
+                senderRole: user.role,
+                receiverId: user.role === 'TEACHER' ? 'ADMIN' : (user.role === 'STUDENT' ? 'TEACHER' : 'ADMIN')
+            });
+            toast.success('Query Payload Transmitted');
+            setNewQuery({ subject: '', content: '' });
+            fetchQueries();
+        } catch (error) {
+            toast.error('Transmission Failure');
+        }
+    };
+
+    const handleResolve = async (queryId) => {
+        const reply = responseInput[queryId];
+        if (!reply?.trim()) return;
+
+        try {
+            await queryService.resolve(queryId, { reply });
+            toast.success('Resolution Synchronized');
+            setResponseInput({ ...responseInput, [queryId]: '' });
+            fetchQueries();
+        } catch (error) {
+            toast.error('Resolution Sync Failed');
+        }
+    };
+
+    const filteredQueries = queries.filter(q =>
+        filterStatus === 'All' ? true : q.status === filterStatus.toUpperCase()
+    ).filter((q, index, self) =>
+        index === self.findIndex((t) => t.id === q.id) // Ensure unique ID rendering
+    );
+
+    if (loading) return (
+        <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="w-12 h-12 rounded-full border-4 border-[var(--accent-primary)] border-t-transparent animate-spin" />
+        </div>
+    );
+
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
-        >
-            <div className="flex items-center justify-between">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+            <div className="flex justify-between items-center px-4">
                 <div>
-                    <h2 className="text-2xl font-black text-[var(--text-primary)] uppercase tracking-tighter">Query Channel</h2>
-                    <p className="text-[var(--text-secondary)] text-[10px] font-black uppercase tracking-[0.2em] mt-1">Peer-to-Peer Academic Communication</p>
+                    <h2 className="text-3xl font-black text-[var(--text-primary)] uppercase tracking-tighter italic">Query Management</h2>
+                    <p className="text-[var(--text-secondary)] text-[10px] font-black uppercase tracking-[0.3em] mt-2 flex items-center gap-2">
+                        <MessageSquare size={14} className="text-[var(--accent-primary)]" />
+                        Resolution Protocol • {user.role} Sector
+                    </p>
                 </div>
-                <div className="flex gap-4">
-                    <div className="px-5 py-2.5 glass rounded-2xl border-[var(--border-primary)] text-[var(--text-secondary)] flex items-center gap-3">
-                        <Filter size={14} />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Protocol Filter</span>
-                    </div>
+                <div className="flex gap-2 bg-white/5 border border-white/10 p-1.5 rounded-2xl">
+                    {['All', 'Pending', 'Resolved'].map(s => (
+                        <button key={s} onClick={() => setFilterStatus(s)} className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${filterStatus === s ? 'bg-[var(--accent-primary)] text-white shadow-lg shadow-[var(--accent-primary)]/20' : 'text-[var(--text-secondary)] hover:bg-white/5'}`}>
+                            {s}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-6">
-                {/* Input Section */}
-                <div className="col-span-1 glass-card bg-white/[0.01] border-[var(--border-primary)] flex flex-col gap-6">
-                    <div className="w-12 h-12 rounded-2xl bg-[var(--accent-primary)]/10 flex items-center justify-center text-[var(--accent-primary)] border border-[var(--accent-primary)]/20 shadow-xl shadow-[var(--accent-primary)]/10">
-                        <MessageSquare size={24} />
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                {user.role !== 'ADMIN' && (
+                    <div className="lg:col-span-1">
+                        <div className="glass-card-accent border-[var(--border-primary)] p-8 space-y-6 shadow-2xl shadow-[var(--accent-primary)]/10">
+                            <div>
+                                <h3 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tighter italic">Broadcaster</h3>
+                                <p className="text-[10px] text-[var(--text-secondary)] font-black uppercase tracking-widest mt-1 opacity-60">Authorized Uplink</p>
+                            </div>
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                <input
+                                    placeholder="Subject Title"
+                                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-xs font-bold focus:border-[var(--accent-primary)] outline-none transition-all"
+                                    value={newQuery.subject}
+                                    onChange={e => setNewQuery({ ...newQuery, subject: e.target.value })}
+                                />
+                                <textarea
+                                    required
+                                    placeholder="Briefly explain the situation..."
+                                    className="w-full min-h-[150px] bg-white/5 border border-white/10 rounded-2xl p-4 text-xs font-bold focus:border-[var(--accent-primary)] outline-none transition-all resize-none"
+                                    value={newQuery.content}
+                                    onChange={e => setNewQuery({ ...newQuery, content: e.target.value })}
+                                />
+                                <button type="submit" className="w-full py-4 bg-[var(--accent-primary)] text-white font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-[var(--accent-primary)]/20 hover:brightness-110 transition-all flex items-center justify-center gap-2">
+                                    <Send size={16} /> Transmit Query
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-lg font-black text-[var(--text-primary)] uppercase tracking-tighter">Transmit Signal</h3>
-                        <p className="text-[10px] text-[var(--text-secondary)] font-black uppercase tracking-[0.1em] mt-1 italic">Resolution cycle ~2 hours</p>
-                    </div>
+                )}
 
-                    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                        <textarea
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Input academic or infrastructural query..."
-                            className="w-full h-48 bg-white/5 border border-[var(--border-primary)] rounded-2xl p-4 text-[11px] font-bold outline-none focus:border-[var(--accent-primary)]/30 focus:bg-[var(--accent-primary)]/5 transition-all resize-none placeholder:text-[var(--text-secondary)] text-[var(--text-primary)]"
-                        />
-                        <button
-                            type="submit"
-                            className="w-full py-4 bg-[var(--accent-primary)] hover:brightness-110 rounded-2xl flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest text-white transition-all shadow-xl shadow-[var(--accent-primary)]/20 group"
-                        >
-                            <Send size={14} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                            Broadcast Payload
-                        </button>
-                    </form>
-                </div>
-
-                {/* Stream Section */}
-                <div className="col-span-2 glass-card-accent border-[var(--border-primary)] flex flex-col gap-8">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-[11px] font-black text-[var(--text-primary)] flex items-center gap-3 uppercase tracking-[0.2em]">
-                            <Search size={16} className="text-[var(--accent-primary)]" />
-                            Active Signal Stream
-                        </h3>
-                    </div>
-
-                    <div className="space-y-4">
-                        <AnimatePresence>
-                            {queries.map((q) => (
-                                <motion.div
-                                    key={q.id}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    className={`p-5 rounded-2xl border bg-white/[0.02] transition-all ${q.status === 'Resolved' ? 'border-emerald-500/20' : 'border-[var(--border-primary)]'}`}
-                                >
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[var(--text-secondary)]">
-                                                <User size={14} />
+                <div className={`${user.role === 'ADMIN' ? 'lg:col-span-4' : 'lg:col-span-3'} space-y-6`}>
+                    <div className="glass-card border-[var(--border-primary)] p-0 overflow-hidden min-h-[500px] flex flex-col">
+                        <div className="p-6 border-b border-white/5 bg-white/5 flex items-center justify-between">
+                            <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-widest flex items-center gap-2">
+                                <Activity size={16} className="text-[var(--accent-primary)]" /> Signal Stream
+                            </h3>
+                            <p className="text-[10px] font-black uppercase text-[var(--text-secondary)] opacity-50">{filteredQueries.length} Total Nodes Detected</p>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                            {filteredQueries.length > 0 ? filteredQueries.map((q) => (
+                                <div key={q.id} className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 hover:border-[var(--accent-primary)]/30 transition-all group">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[var(--accent-primary)] font-black shadow-lg">
+                                                {q.senderName?.[0] || 'U'}
                                             </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[9px] font-black text-[var(--text-secondary)] uppercase tracking-widest">Node ID: S-Protocol</span>
-                                                <span className="text-[10px] font-black text-[var(--text-primary)] opacity-40 uppercase">{q.date}</span>
+                                            <div>
+                                                <p className="text-sm font-black text-[var(--text-primary)] uppercase tracking-tight italic group-hover:text-[var(--accent-primary)] transition-colors">{q.senderName}</p>
+                                                <p className="text-[9px] text-[var(--text-secondary)] font-black uppercase tracking-widest opacity-50 flex items-center gap-2">
+                                                    {q.senderRole} node • {new Date(q.createdAt).toLocaleDateString()}
+                                                </p>
                                             </div>
                                         </div>
-                                        <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-[0.2em] border ${q.status === 'Resolved' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>
+                                        <div className={`px-4 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-[0.3em] border transition-all ${q.status === 'RESOLVED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>
                                             {q.status}
                                         </div>
                                     </div>
-                                    <p className="text-[11px] font-bold text-[var(--text-primary)] leading-relaxed mb-4">{q.text}</p>
 
-                                    {q.response && (
-                                        <div className="mt-4 pt-4 border-t border-white/5 flex gap-4">
-                                            <div className="w-1.5 h-auto bg-emerald-500/40 rounded-full" />
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <CheckCircle size={10} className="text-emerald-500" />
-                                                    <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Peer Resolution</span>
-                                                </div>
-                                                <p className="text-[10px] italic font-bold text-[var(--text-secondary)]">{q.response}</p>
+                                    <div className="relative pl-6 border-l-2 border-white/5 mb-6 group-hover:border-[var(--accent-primary)]/40 transition-all">
+                                        <p className="text-[10px] font-black uppercase text-[var(--accent-primary)] tracking-widest mb-1 opacity-80">{q.subject || "Academic Query"}</p>
+                                        <p className="text-xs font-bold text-[var(--text-primary)] italic leading-relaxed opacity-90">{q.content}</p>
+                                    </div>
+
+                                    {q.status === 'RESOLVED' ? (
+                                        <div className="ml-6 p-5 rounded-2xl bg-[var(--accent-primary)]/5 border border-[var(--accent-primary)]/10">
+                                            <div className="flex items-center gap-2 mb-2 text-[var(--accent-primary)]">
+                                                <CheckCircle size={14} />
+                                                <span className="text-[9px] font-black uppercase tracking-[0.2em]">Official Resolution</span>
                                             </div>
+                                            <p className="text-[11px] font-bold text-[var(--text-primary)] italic leading-relaxed opacity-70">"{q.reply}"</p>
+                                        </div>
+                                    ) : (user.role === 'ADMIN' || (user.role === 'TEACHER' && q.receiverId === 'TEACHER')) ? (
+                                        <div className="ml-6 flex gap-3">
+                                            <input
+                                                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-xs font-bold focus:border-[var(--accent-primary)] outline-none transition-all"
+                                                placeholder="Transmit resolution..."
+                                                value={responseInput[q.id] || ''}
+                                                onChange={e => setResponseInput({ ...responseInput, [q.id]: e.target.value })}
+                                            />
+                                            <button
+                                                onClick={() => handleResolve(q.id)}
+                                                className="px-6 bg-[var(--accent-primary)] text-white rounded-2xl shadow-lg shadow-[var(--accent-primary)]/20 hover:brightness-110 active:scale-95 transition-all"
+                                            >
+                                                <Send size={16} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="ml-6 flex items-center gap-2 text-amber-500/50 italic text-[9px] font-black uppercase tracking-widest">
+                                            <Clock size={12} /> Awaiting Peer Synchronization
                                         </div>
                                     )}
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
+                                </div>
+                            )) : (
+                                <div className="py-24 flex flex-col items-center justify-center text-center opacity-30 italic">
+                                    <ShieldAlert size={60} className="mb-6 stroke-[1]" />
+                                    <p className="text-[10px] font-black uppercase tracking-[0.4em]">Signal stream clear • No anomalies detected</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

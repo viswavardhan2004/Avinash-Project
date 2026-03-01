@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -32,24 +33,39 @@ public class StudentController {
     private UserRepository userRepository;
 
     @PostMapping
-    public Student addStudent(@RequestBody Student student) {
-        Student saved = studentService.addStudent(student);
-        // Auto-create a User login account for this student
-        if (student.getEmail() != null && !student.getEmail().isBlank()
-                && student.getPassword() != null && !student.getPassword().isBlank()) {
-            try {
-                // Use email as both username and login identifier
-                if (userRepository.findByEmail(student.getEmail()).isEmpty()) {
-                    String username = student.getRollNo() != null && !student.getRollNo().isBlank()
-                            ? student.getRollNo() : student.getEmail();
-                    User user = new User(username, student.getEmail(), student.getPassword(), "STUDENT");
-                    userRepository.save(user);
+    public ResponseEntity<?> addStudent(@RequestBody Student student) {
+        try {
+            // Pre-save validation: check for duplicate RFID
+            if (student.getRfidUid() != null && !student.getRfidUid().isBlank()) {
+                Student existing = studentRepository.findByRfidUid(student.getRfidUid());
+                if (existing != null) {
+                    return ResponseEntity.badRequest().body(
+                        Map.of("message", "A student with RFID UID '" + student.getRfidUid() + "' already exists. Please use a unique RFID."));
                 }
-            } catch (Exception ignored) {
-                // User may already exist — skip silently
             }
+            Student saved = studentService.addStudent(student);
+            // Auto-create a User login account for this student
+            if (student.getEmail() != null && !student.getEmail().isBlank()
+                    && student.getPassword() != null && !student.getPassword().isBlank()) {
+                try {
+                    if (userRepository.findByEmail(student.getEmail()).isEmpty()) {
+                        String username = student.getRollNo() != null && !student.getRollNo().isBlank()
+                                ? student.getRollNo() : student.getEmail();
+                        User user = new User(username, student.getEmail(), student.getPassword(), "STUDENT");
+                        userRepository.save(user);
+                    }
+                } catch (Exception ignored) {
+                    // User may already exist — skip silently
+                }
+            }
+            return ResponseEntity.ok(saved);
+        } catch (Exception e) {
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("duplicate key")) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Duplicate RFID UID or Roll No. Please use unique values."));
+            }
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to add student: " + msg));
         }
-        return saved;
     }
 
     @GetMapping

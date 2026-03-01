@@ -26,4 +26,6 @@ public interface AttendanceRepository extends MongoRepository<Attendance, String
             String subject,
             char status
     );
+    long countByStudent(Student student);
+    long countByStudentAndStatus(Student student, char status);
 }

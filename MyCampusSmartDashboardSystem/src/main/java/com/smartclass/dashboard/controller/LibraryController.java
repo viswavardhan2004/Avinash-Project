@@ -40,4 +40,29 @@ public class LibraryController {
     public LibraryIssue returnBook(@PathVariable String issueId) {
         return libraryService.returnBook(issueId);
     }
+
+    @GetMapping("/issues/student/{studentId}")
+    public List<LibraryIssue> getIssuesByStudent(@PathVariable String studentId) {
+        return libraryService.getIssuesByStudent(studentId);
+    }
+
+    @GetMapping("/issues")
+    public List<LibraryIssue> getAllIssues() {
+        return libraryService.getAllIssues();
+    }
+
+    @PutMapping("/books/{id}")
+    public LibraryBook updateBook(@PathVariable String id, @RequestBody LibraryBook book) {
+        return libraryService.updateBook(id, book);
+    }
+
+    @DeleteMapping("/books/{id}")
+    public void deleteBook(@PathVariable String id) {
+        libraryService.deleteBook(id);
+    }
+
+    @DeleteMapping("/issues/{id}")
+    public void deleteIssue(@PathVariable String id) {
+        libraryService.deleteIssue(id);
+    }
 }

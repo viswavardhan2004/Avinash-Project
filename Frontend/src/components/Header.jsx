@@ -4,10 +4,12 @@ import { useAuth } from '../services/AuthContext';
 import { useTheme } from '../services/ThemeContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import NotificationPanel from './NotificationPanel';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 const Header = () => {
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
+    const navigate = useNavigate();
     const { accentColor, changeAccent } = useTheme();
     const [showPicker, setShowPicker] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
@@ -136,7 +138,11 @@ const Header = () => {
                                 className="absolute top-full right-0 mt-3 p-2 glass rounded-2xl border-[var(--border-primary)] bg-black/90 shadow-2xl z-[100] w-40"
                             >
                                 <button
-                                    onClick={logout}
+                                    onClick={() => {
+                                        logout();
+                                        navigate('/');
+                                        toast.success('Logged out successfully');
+                                    }}
                                     className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-red-500 hover:bg-red-500/10 transition-all font-black text-[11px] uppercase tracking-widest"
                                 >
                                     <LogOut size={16} />

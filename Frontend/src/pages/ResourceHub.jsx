@@ -229,36 +229,43 @@ const ResourceHub = () => {
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
-                            className="relative w-full max-w-lg glass rounded-[40px] border-[var(--border-primary)] p-10 bg-black"
+                            className="relative w-full max-w-lg glass rounded-[40px] border-[var(--border-primary)] p-10 bg-black shadow-2xl shadow-emerald-500/10"
                         >
-                            <h3 className="text-3xl font-black text-[var(--text-primary)] uppercase tracking-tighter mb-8 italic">Resource Broadcast</h3>
+                            <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-8 italic flex items-center gap-3">
+                                <Plus className="text-emerald-500" />
+                                Resource Broadcast
+                            </h3>
                             <form onSubmit={handleFileUpload} className="space-y-6">
-                                <div className="space-y-1.5">
-                                    <label className="text-[8px] font-black text-[var(--accent-primary)] uppercase tracking-[0.2em] ml-1">Payload Title</label>
-                                    <input type="text" className="w-full bg-white/5 border border-[var(--border-primary)] rounded-xl py-4 px-6 text-sm font-bold focus:border-[var(--accent-primary)]/30 outline-none transition-all" placeholder="Enter resource name..." />
+                                <div className="space-y-1.5 text-left">
+                                    <label className="text-[8px] font-black text-emerald-500 uppercase tracking-[0.2em] ml-1">Payload Title</label>
+                                    <input type="text" required className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-6 text-sm font-bold focus:border-emerald-500/50 outline-none transition-all placeholder:text-[var(--text-secondary)]/30" placeholder="e.g. Distributed Systems Architecture" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[8px] font-black text-[var(--accent-primary)] uppercase tracking-[0.2em] ml-1">Target Section</label>
-                                        <select className="w-full bg-white/5 border border-[var(--border-primary)] rounded-xl py-4 px-6 text-xs font-black uppercase appearance-none outline-none">
+                                    <div className="space-y-1.5 text-left">
+                                        <label className="text-[8px] font-black text-emerald-500 uppercase tracking-[0.2em] ml-1">Target Section</label>
+                                        <select className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-6 text-xs font-black uppercase appearance-none outline-none focus:border-emerald-500/50">
                                             <option>CSE-A</option>
                                             <option>CSE-B</option>
                                         </select>
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[8px] font-black text-[var(--accent-primary)] uppercase tracking-[0.2em] ml-1">Payload Type</label>
-                                        <select className="w-full bg-white/5 border border-[var(--border-primary)] rounded-xl py-4 px-6 text-xs font-black uppercase appearance-none outline-none">
+                                    <div className="space-y-1.5 text-left">
+                                        <label className="text-[8px] font-black text-emerald-500 uppercase tracking-[0.2em] ml-1">Payload Type</label>
+                                        <select className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-6 text-xs font-black uppercase appearance-none outline-none focus:border-emerald-500/50">
                                             <option>DOCUMENT (PDF)</option>
-                                            <option>PRESENTATION (PPTX)</option>
+                                            <option>DEMO VIDEO (URL)</option>
                                             <option>EXTERNAL LINK</option>
                                         </select>
                                     </div>
                                 </div>
-                                <div className="p-10 border-2 border-dashed border-[var(--border-primary)] rounded-3xl text-center bg-white/5 hover:border-[var(--accent-primary)]/40 transition-all cursor-pointer">
-                                    <Upload size={32} className="mx-auto text-[var(--text-secondary)] mb-4" />
-                                    <p className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest leading-relaxed">Drag & Drop Encrypted<br />Resource Payload</p>
+                                <div className="space-y-1.5 text-left">
+                                    <label className="text-[8px] font-black text-emerald-500 uppercase tracking-[0.2em] ml-1">Cloud Link (File/Video)</label>
+                                    <input type="url" required className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-6 text-sm font-mono focus:border-emerald-500/50 outline-none transition-all placeholder:text-[var(--text-secondary)]/30" placeholder="https://drive.google.com/..." />
                                 </div>
-                                <button type="submit" className="w-full py-5 bg-[var(--accent-primary)] text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-[var(--accent-primary)]/30 transition-all hover:brightness-110">
+                                <div className="space-y-1.5 text-left">
+                                    <label className="text-[8px] font-black text-emerald-500 uppercase tracking-[0.2em] ml-1">Strategic Description</label>
+                                    <textarea rows="3" className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-6 text-sm font-bold focus:border-emerald-500/50 outline-none transition-all placeholder:text-[var(--text-secondary)]/30 resize-none" placeholder="Provide context for this payload..."></textarea>
+                                </div>
+                                <button type="submit" className="w-full py-5 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-xl shadow-emerald-500/20 transition-all hover:brightness-110">
                                     Initiate Transmission
                                 </button>
                             </form>

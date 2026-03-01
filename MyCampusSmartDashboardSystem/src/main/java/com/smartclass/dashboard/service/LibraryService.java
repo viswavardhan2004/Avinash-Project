@@ -14,4 +14,12 @@ public interface LibraryService {
     LibraryIssue issueBook(LibraryIssue issue);
 
     LibraryIssue returnBook(String issueId);
+
+    List<LibraryIssue> getIssuesByStudent(String studentId);
+
+    List<LibraryIssue> getAllIssues();
+    
+    LibraryBook updateBook(String id, LibraryBook book);
+    void deleteBook(String id);
+    void deleteIssue(String id);
 }

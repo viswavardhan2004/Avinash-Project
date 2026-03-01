@@ -31,7 +31,7 @@ const StudentModal = ({ student, onClose, onSave }) => {
             });
             onClose();
         } catch (err) {
-            alert(err.response?.data?.message || 'Operation failed. Check if RFID UID is unique.');
+            alert(err.response?.data?.message || err.message || 'Operation failed. Check if RFID UID is unique.');
         } finally {
             setLoading(false);
         }
@@ -132,24 +132,26 @@ const DeleteConfirmModal = ({ student, onClose, onConfirm }) => {
 /* ─── Student Detail Panel ───────────────────────────────── */
 const StudentDetailPanel = ({ student, onClose, onEdit }) => {
     const [grades, setGrades] = useState([]);
-    const [attendance, setAttendance] = useState(null);
+    const [gpa, setGpa] = useState(null);
     const [loadingDetails, setLoadingDetails] = useState(true);
 
     useEffect(() => {
         if (!student) return;
         setLoadingDetails(true);
+        // Use student.id as primary lookup key (MongoDB _id)
+        const lookupId = student.id || student.rfidUid;
         Promise.allSettled([
-            gradeService.getByRfid(student.rfidUid),
-            gradeService.calculateGPA(student.rfidUid),
+            gradeService.getByRfidOrId(lookupId),
+            gradeService.calculateGPA(lookupId),
         ]).then(([gradesRes, gpaRes]) => {
             if (gradesRes.status === 'fulfilled') setGrades(gradesRes.value.data || []);
-            if (gpaRes.status === 'fulfilled') setAttendance(gpaRes.value.data);
+            if (gpaRes.status === 'fulfilled') setGpa(gpaRes.value.data ?? null);
         }).finally(() => setLoadingDetails(false));
     }, [student]);
 
-    const cgpa = student.cgpa > 0 ? student.cgpa : (attendance?.gpa ?? (grades.length > 0
-        ? (grades.reduce((sum, g) => sum + (g.gpa || 0), 0) / grades.length).toFixed(2)
-        : 'N/A'));
+    const displayGpa = student.cgpa > 0
+        ? student.cgpa
+        : (gpa !== null ? Number(gpa).toFixed(2) : 'N/A');
 
     const yearLabels = { 1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year' };
 
@@ -195,7 +197,7 @@ const StudentDetailPanel = ({ student, onClose, onEdit }) => {
                             <BarChart2 size={12} /> Overall CGPA
                         </p>
                         <p className="text-5xl font-black text-[var(--text-primary)] italic tracking-tighter">
-                            {loadingDetails ? '...' : cgpa}
+                            {loadingDetails ? '...' : displayGpa}
                         </p>
                     </div>
 
@@ -229,14 +231,17 @@ const StudentDetailPanel = ({ student, onClose, onEdit }) => {
                         ) : grades.length > 0 ? (
                             <div className="space-y-2">
                                 {grades.map((g, i) => (
-                                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-[var(--border-primary)] hover:border-[var(--accent-primary)]/30 transition-all">
-                                        <span className="text-sm font-bold text-[var(--text-primary)]">{g.subjectName || g.subject || `Subject ${i + 1}`}</span>
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-xs font-bold text-[var(--text-secondary)]">GPA: {g.gpa ?? '—'}</span>
-                                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${g.grade === 'O' || g.grade === 'A+' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border border-[var(--accent-primary)]/20'}`}>
-                                                {g.grade || '—'}
-                                            </span>
+                                    <div key={g.id || i} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-[var(--border-primary)] hover:border-[var(--accent-primary)]/30 transition-all">
+                                        <div>
+                                            <span className="text-sm font-bold text-[var(--text-primary)]">{g.subject || `Subject ${i + 1}`}</span>
+                                            <span className="text-[10px] text-[var(--text-secondary)] ml-2">Sem {g.semester} • {g.credits} Credits</span>
                                         </div>
+                                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black border ${g.grade === 'O' || g.grade === 'A+' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                            g.grade === 'F' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                                'bg-[var(--accent-primary)]/10 text-[var(--accent-primary)] border-[var(--accent-primary)]/20'
+                                            }`}>
+                                            {g.grade || '—'}
+                                        </span>
                                     </div>
                                 ))}
                             </div>

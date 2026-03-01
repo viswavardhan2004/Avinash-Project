@@ -9,7 +9,6 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/timetable")
-
 public class TimetableController {
 
     private final TimetableRepository timetableRepository;

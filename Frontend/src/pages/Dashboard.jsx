@@ -1,216 +1,387 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Calendar, Library, GraduationCap, BookOpen, Activity, TrendingUp, AlertTriangle, X } from 'lucide-react';
-import { studentService, timetableService, attendanceService } from '../services/api';
+import {
+    Calendar, Clock, BarChart3, Users, BookOpen,
+    MessageSquare, MessageCircle, Award, ClipboardList, ChevronRight,
+    Activity, Zap, TrendingUp, CheckCircle, AlertCircle, Phone, Mail, Building2, Briefcase,
+    Library, Wallet, X, Info
+} from 'lucide-react';
+import { dashboardService, studentService, timetableService, assignmentService, sectionService, teacherService, gradeService, queryService } from '../services/api';
 import { useAuth } from '../services/AuthContext';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { StatSkeleton, CardSkeleton } from '../components/Skeletons';
+import { useNavigate } from 'react-router-dom';
+import { CardSkeleton } from '../components/Skeletons';
 
 const Dashboard = () => {
     const { user } = useAuth();
-    const [studentCount, setStudentCount] = useState(0);
-    const [classes, setClasses] = useState([]);
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
-    const [attendanceWarning, setAttendanceWarning] = useState(null);
-    const [showWarning, setShowWarning] = useState(false);
 
-    const attendanceData = [
-        { name: 'Mon', value: 85 },
-        { name: 'Tue', value: 92 },
-        { name: 'Wed', value: 88 },
-        { name: 'Thu', value: 95 },
-        { name: 'Fri', value: 89 },
-    ];
+    // Efficiency Optimized States
+    const [studentData, setStudentData] = useState(null);
+    const [attendancePercent, setAttendancePercent] = useState(0);
+    const [cGPA, setCGPA] = useState(0);
+    const [classes, setClasses] = useState([]);
+    const [placementDrives, setPlacementDrives] = useState([]);
+    const [booksLentCount, setBooksLentCount] = useState(0);
+    const [pendingFeeAmount, setPendingFeeAmount] = useState(0);
+    const [issuedBooks, setIssuedBooks] = useState([]);
+    const [fees, setFees] = useState([]);
 
-    const gradeData = [
-        { name: 'Sem 1', gpa: 3.4 },
-        { name: 'Sem 2', gpa: 3.6 },
-        { name: 'Sem 3', gpa: 3.5 },
-        { name: 'Sem 4', gpa: 3.8 },
-    ];
+    // Modal states
+    const [showLibraryModal, setShowLibraryModal] = useState(false);
+    const [showFeeModal, setShowFeeModal] = useState(false);
+
+    // Teacher specific states
+    const [teacherStudents, setTeacherStudents] = useState([]);
+    const [pendingQueries, setPendingQueries] = useState(0);
+    const [activeAssignments, setActiveAssignments] = useState(0);
+    const [uniqueSections, setUniqueSections] = useState([]);
+
+    const GRADE_MAP = { 'O': 10, 'A+': 9, 'A': 8, 'B+': 7, 'B': 6, 'C': 5, 'P': 4, 'F': 0 };
+    const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+
+    const fetchDashboardAggregated = async () => {
+        setLoading(true);
+        try {
+            if (user.role === 'STUDENT') {
+                const res = await dashboardService.getStudentData(user.username || user.email);
+                if (res.data) {
+                    const d = res.data;
+                    setStudentData(d.student);
+                    setAttendancePercent(d.attendancePercent || 0);
+                    setBooksLentCount(d.booksLentCount || 0);
+                    setPendingFeeAmount(d.pendingFeeAmount || 0);
+                    setIssuedBooks(d.issuedBooks || []);
+                    setFees(d.fees || []);
+                    setClasses(d.todayClasses || []);
+                    setPlacementDrives(d.placementDrives || []);
+
+                    // GPA Calculation
+                    if (d.grades && d.grades.length > 0) {
+                        const total = d.grades.reduce((acc, g) => acc + (GRADE_MAP[g.grade] || 0), 0);
+                        setCGPA((total / d.grades.length).toFixed(2));
+                    }
+                }
+            } else if (user.role === 'TEACHER') {
+                const [sRes, qRes, ttRes, asgRes, secRes] = await Promise.allSettled([
+                    studentService.getAll(),
+                    queryService.getAll(),
+                    timetableService.getAll(),
+                    assignmentService.getByTeacher(user.username || user.email),
+                    sectionService.getAll(),
+                ]);
+
+                const students = sRes.status === 'fulfilled' ? sRes.value.data : [];
+                const allQueries = qRes.status === 'fulfilled' ? qRes.value.data : [];
+                setPendingQueries(allQueries.filter(q => q.status === 'PENDING').length);
+
+                const allSlots = ttRes.status === 'fulfilled' ? ttRes.value.data : [];
+                const mySlots = allSlots.filter(s =>
+                    s.instructor?.toLowerCase().includes(user.name?.toLowerCase()) ||
+                    s.instructor?.toLowerCase().includes(user.username?.toLowerCase())
+                );
+                setClasses(mySlots.filter(s => s.day === todayStr));
+
+                const allSections = secRes.status === 'fulfilled' ? secRes.value.data : [];
+                const sectionNames = [...new Set(mySlots.map(c => c.section))];
+                setUniqueSections(sectionNames);
+                setActiveAssignments(asgRes.status === 'fulfilled' ? asgRes.value.data?.length || 0 : 0);
+                setTeacherStudents(students.filter(s => sectionNames.includes(s.sectionName)).slice(0, 8));
+            }
+        } catch (error) {
+            console.error('Aggregated Dashboard Error:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        Promise.all([
-            studentService.getAll().then(res => {
-                setStudentCount(res.data.length);
-                // Find this logged-in student by matching roll no or name
-                const myStudent = res.data.find(s =>
-                    s.rollNo === user?.username || s.name?.toLowerCase() === user?.name?.toLowerCase()
-                );
-                if (myStudent?.rfidUid) {
-                    attendanceService.getAll().then(attRes => {
-                        const recs = (attRes.data || []).filter(a => a.rfidUid === myStudent.rfidUid);
-                        if (recs.length > 0) {
-                            const avg = recs.reduce((s, r) => s + (r.percentage || 0), 0) / recs.length;
-                            if (avg < 60) {
-                                setAttendanceWarning(avg.toFixed(1));
-                                setShowWarning(true);
-                            }
-                        }
-                    }).catch(() => { });
-                }
-            }),
-            timetableService.getAll().then(res => setClasses(res.data.slice(0, 5)))
-        ]).finally(() => {
-            setTimeout(() => setLoading(false), 800);
-        });
-    }, []);
+        fetchDashboardAggregated();
+    }, [user]);
 
-    const stats = [
-        { label: 'Campus Students', value: studentCount, icon: Users, trend: 'Network Active' },
-        { label: 'Today\'s Classes', value: classes.length, icon: Calendar, trend: 'Scheduled' },
-        { label: 'Sync Rate', value: `${attendanceWarning ? Math.round(Number(attendanceWarning)) : 100}%`, icon: Activity, trend: attendanceWarning ? 'Critical' : 'Optimal' },
-        { label: 'Current CGPA', value: gradeData.length > 0 ? gradeData[gradeData.length - 1].gpa : 'N/A', icon: GraduationCap, trend: 'Protocol Stable' },
-    ];
+    if (loading) return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-6">
+            <CardSkeleton /><CardSkeleton /><CardSkeleton /><CardSkeleton />
+        </div>
+    );
 
-    if (loading) {
+    /* ─── TEACHER DASHBOARD ─────────────────────────────── */
+    if (user.role === 'TEACHER') {
         return (
-            <div className="grid grid-cols-4 gap-6">
-                {[1, 2, 3, 4].map(i => <StatSkeleton key={i} />)}
-                <div className="col-span-3"><CardSkeleton /></div>
-                <div className="col-span-1"><CardSkeleton /></div>
-            </div>
-        );
-    }
-
-    return (
-        <>
-            {/* Low Attendance Warning Banner */}
-            <AnimatePresence>
-                {showWarning && attendanceWarning && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-xl"
-                    >
-                        <div className="flex items-center gap-4 px-6 py-4 rounded-2xl bg-red-500/20 border border-red-500/40 backdrop-blur-xl shadow-2xl shadow-red-500/20">
-                            <AlertTriangle size={20} className="text-red-400 flex-shrink-0 animate-pulse" />
-                            <div className="flex-1">
-                                <p className="font-black text-red-300 text-sm uppercase tracking-tight">⚠️ Low Attendance Alert</p>
-                                <p className="text-xs text-red-400/80 font-bold mt-0.5">Your attendance is <span className="text-red-300 font-black">{attendanceWarning}%</span> — minimum required is 60%. Please attend more classes.</p>
-                            </div>
-                            <button onClick={() => setShowWarning(false)} className="p-1 text-red-400 hover:text-red-200"><X size={16} /></button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-            <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                className="grid grid-cols-4 gap-6"
-            >
-                {/* Stats Grid */}
-                {stats.map((stat, idx) => (
-                    <div key={idx} className="glass-card-accent flex flex-col gap-4 border-[var(--border-primary)] group relative overflow-hidden">
-                        <div className="flex justify-between items-start relative z-10">
-                            <div className="w-12 h-12 rounded-2xl bg-[var(--accent-primary)]/10 flex items-center justify-center text-[var(--accent-primary)] group-hover:scale-110 transition-transform">
-                                <stat.icon size={24} />
-                            </div>
-                            <span className="text-[9px] font-black text-[var(--accent-primary)] bg-[var(--accent-primary)]/10 px-2 py-1 rounded-full border border-[var(--accent-primary)]/20 uppercase tracking-widest">{stat.trend}</span>
-                        </div>
-                        <div className="relative z-10">
-                            <h3 className="text-[var(--text-secondary)] text-[10px] font-black uppercase tracking-[0.2em]">{stat.label}</h3>
-                            <p className="text-2xl font-black text-[var(--text-primary)] mt-1 tracking-tighter">{stat.value}</p>
-                        </div>
-                        <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[var(--accent-primary)]/20 to-transparent" />
-                    </div>
-                ))}
-
-                {/* Main Content Area: Analytics */}
-                <div className="col-span-3 glass-card bg-white/[0.01] border-[var(--border-primary)] flex flex-col gap-8">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tighter">Operational Analytics</h3>
-                            <p className="text-[10px] text-[var(--text-secondary)] font-black uppercase tracking-[0.2em] mt-1">Real-time attendance telemetry</p>
-                        </div>
-                        <div className="flex gap-2">
-                            <button className="px-4 py-2 rounded-xl bg-[var(--accent-primary)]/10 border border-[var(--accent-primary)]/20 text-[9px] font-black uppercase tracking-widest text-[var(--accent-primary)]">Download PDF</button>
-                        </div>
-                    </div>
-
-                    <div className="h-64 mt-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={attendanceData}>
-                                <defs>
-                                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="var(--accent-primary)" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="var(--accent-primary)" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                <XAxis dataKey="name" stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} axisLine={false} />
-                                <YAxis stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} axisLine={false} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: 'black', border: '1px solid var(--border-primary)', borderRadius: '12px', fontSize: '10px', fontFamily: 'Inter' }}
-                                    itemStyle={{ color: 'var(--accent-primary)', fontWeight: 'bold' }}
-                                />
-                                <Area type="monotone" dataKey="value" stroke="var(--accent-primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    <div className="space-y-4 pt-4 border-t border-[var(--border-primary)]">
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-secondary)]">Recent Synchronizations</h4>
-                        {classes.length > 0 ? classes.map((item, i) => (
-                            <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-[var(--border-primary)] hover:border-[var(--accent-primary)]/30 transition-all cursor-pointer group">
-                                <div className="flex items-center gap-4">
-                                    <Activity size={16} className="text-[var(--accent-primary)] opacity-50" />
-                                    <p className="text-[11px] font-black text-[var(--text-primary)] uppercase tracking-tight">{item.subject} <span className="text-[var(--text-secondary)] font-normal mx-2 opacity-30">|</span> {item.teacher}</p>
-                                </div>
-                                <span className="text-[9px] font-black text-[var(--text-secondary)] opacity-50">{item.day} {item.startTime}</span>
-                            </div>
-                        )) : (
-                            <div className="text-center py-10 text-[var(--text-secondary)] italic font-bold">No synchronization packets found</div>
-                        )}
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="space-y-8 px-2 md:px-0">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-4">
+                    <div>
+                        <h2 className="text-2xl md:text-3xl font-black text-[var(--text-primary)] uppercase tracking-tighter italic">
+                            Welcome, {user.name || 'Faculty Member'}
+                        </h2>
+                        <p className="text-[var(--text-secondary)] text-[10px] font-black uppercase tracking-[0.3em] mt-2 flex items-center gap-2">
+                            Avanthi Institute Faculty • {todayStr}
+                        </p>
                     </div>
                 </div>
 
-                {/* Sidebar Stats: GPA Growth */}
-                <div className="col-span-1 flex flex-col gap-6">
-                    <div className="glass-card-accent bg-transparent border-[var(--accent-primary)]/10 min-h-[300px] flex flex-col justify-between">
-                        <div>
-                            <h3 className="font-black text-[var(--text-primary)] uppercase tracking-tighter text-lg leading-tight mb-1">Metric Growth</h3>
-                            <p className="text-[9px] text-[var(--text-secondary)] font-black uppercase tracking-[0.2em]">Historical GPA Protocol</p>
-                        </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <MetricTile icon={<Users className="text-orange-500" />} label="Academic Cohorts" value={uniqueSections.length} color="amber" onClick={() => navigate('/cohorts')} />
+                    <MetricTile icon={<BookOpen className="text-emerald-500" />} label="Assignments" value={activeAssignments} color="emerald" onClick={() => navigate('/assignments')} />
+                    <MetricTile icon={<MessageSquare className="text-indigo-500" />} label="Open Queries" value={pendingQueries} color="indigo" onClick={() => navigate('/queries')} />
+                </div>
 
-                        <div className="flex-1 min-h-[150px] mt-6">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={gradeData}>
-                                    <Bar dataKey="gpa" fill="var(--accent-primary)" radius={[4, 4, 0, 0]} />
-                                    <XAxis dataKey="name" hide />
-                                    <Tooltip
-                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                                        contentStyle={{ backgroundColor: 'black', border: '1px solid var(--border-primary)', borderRadius: '8px', fontSize: '9px' }}
-                                    />
-                                </BarChart>
-                            </ResponsiveContainer>
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                    <div className="xl:col-span-1 glass-card border border-[var(--border-primary)] p-0 overflow-hidden flex flex-col min-h-[400px] shadow-2xl">
+                        <div className="p-6 border-b border-white/5 bg-white/5 flex items-center justify-between">
+                            <h3 className="text-xs font-black text-[var(--text-primary)] uppercase tracking-widest flex items-center gap-3 italic">
+                                <Clock size={16} className="text-[var(--accent-primary)]" /> Scheduled Sessions
+                            </h3>
                         </div>
-
-                        <div className="pt-4 border-t border-white/5 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <TrendingUp size={14} className="text-[var(--accent-primary)]" />
-                                <span className="text-xs font-black text-[var(--text-primary)]">+8.4%</span>
-                            </div>
-                            <span className="text-[9px] font-bold text-[var(--text-secondary)] uppercase">Target: 4.0</span>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-3">
+                            {classes.length > 0 ? classes.map((c, i) => (
+                                <div key={i} onClick={() => navigate('/attendance')} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-[var(--accent-primary)]/40 transition-all cursor-pointer group flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 rounded-lg bg-[var(--accent-primary)]/10 flex items-center justify-center text-[var(--accent-primary)] font-black text-xs border border-[var(--accent-primary)]/10 group-hover:scale-110 transition-transform">
+                                            {c.time?.split(':')[0]}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-black text-[var(--text-primary)] text-[11px] uppercase italic leading-tight">{c.subject}</h4>
+                                            <p className="text-[8px] font-bold text-[var(--text-secondary)] uppercase tracking-widest opacity-40 mt-0.5">{c.time} • Room {c.room}</p>
+                                        </div>
+                                    </div>
+                                    <span className="px-2 py-0.5 bg-white/5 rounded text-[7px] font-black uppercase text-[var(--accent-primary)] border border-white/5">{c.section}</span>
+                                </div>
+                            )) : (
+                                <div className="text-center py-20 opacity-20 italic font-black uppercase text-[10px] tracking-[0.4em]">No active sessions</div>
+                            )}
                         </div>
                     </div>
 
-                    <div className="glass-card border-[var(--border-primary)]">
-                        <h3 className="font-black mb-4 text-[var(--text-primary)] text-[10px] uppercase tracking-[0.2em]">Active Subroutines</h3>
-                        <div className="space-y-3">
-                            {['Knowledge Base', 'Schedule Sync', 'Global Query'].map(task => (
-                                <div key={task} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 group hover:bg-[var(--accent-primary)]/5 transition-all">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-primary)] shadow-[0_0_8px_var(--accent-glow)]" />
-                                    <span className="text-[10px] font-black text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-all uppercase">{task}</span>
-                                </div>
-                            ))}
+                    <div className="xl:col-span-2 glass-card border border-[var(--border-primary)] p-0 overflow-hidden flex flex-col min-h-[400px] shadow-2xl">
+                        <div className="p-6 border-b border-white/5 bg-white/5">
+                            <h3 className="text-xs font-black text-[var(--text-primary)] uppercase tracking-widest flex items-center gap-3 italic">
+                                <Activity size={18} className="text-emerald-500" /> Students Analytics Stream
+                            </h3>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="text-[8px] font-black text-[var(--text-secondary)] uppercase tracking-[0.3em] border-b border-white/5 bg-black/20">
+                                        <th className="py-4 px-6 md:px-8">Roll No</th>
+                                        <th className="py-4 px-6 md:px-8">Name</th>
+                                        <th className="py-4 px-6 md:px-8 text-right">Progress</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {teacherStudents.map((s, i) => (
+                                        <tr key={i} className="border-b border-white/[0.02] hover:bg-white/[0.01] transition-all group">
+                                            <td className="py-4 px-6 md:px-8 text-[9px] font-black text-[var(--text-secondary)] uppercase italic">{s.rollNo}</td>
+                                            <td className="py-4 px-6 md:px-8">
+                                                <p className="font-black text-[var(--text-primary)] text-[11px] uppercase italic group-hover:text-[var(--accent-primary)] transition-colors">{s.name}</p>
+                                            </td>
+                                            <td className="py-4 px-6 md:px-8 text-right">
+                                                <span className="px-2 py-0.5 rounded-full text-[7px] font-black uppercase bg-white/5 text-[var(--text-secondary)] border border-white/5">Steady</span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
             </motion.div>
-        </>
+        );
+    }
+
+    /* ─── STUDENT DASHBOARD ────────────────────────── */
+    return (
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="space-y-10 pb-20 px-4 md:px-0">
+            {/* HERO BANNER */}
+            <div className="glass-card border-[var(--border-primary)] p-0 overflow-hidden relative shadow-2xl group min-h-[300px] md:min-h-[400px]">
+                <div className="absolute inset-0 bg-gradient-to-r from-black via-black/40 to-transparent z-10" />
+                <img
+                    src="https://images.unsplash.com/photo-1541339906194-e1620a9fb2dd?auto=format&fit=crop&q=80&w=1200"
+                    alt="Avanthi Banner"
+                    loading="lazy"
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-[10s]"
+                />
+                <div className="relative z-20 p-6 md:p-12 h-full flex flex-col justify-end">
+                    <span className="px-3 py-1 md:px-4 md:py-1.5 bg-orange-500 text-white rounded-lg text-[8px] md:text-[10px] font-black uppercase tracking-widest w-max mb-4 md:mb-6">Avanthi Excellence</span>
+                    <h2 className="text-2xl md:text-5xl font-black text-white uppercase tracking-tighter italic leading-none max-w-3xl mb-4">
+                        AVANTHI INSTITUTE FINAL YEAR STUDENTS ACHIEVING <span className="text-orange-500 underline decoration-white/20">HIGHEST PACKAGES</span>
+                    </h2>
+                    <p className="text-white/60 text-[9px] md:text-xs font-bold font-mono uppercase tracking-tight max-w-lg">850+ Avanthi students secured elite placements this season across tech giants*</p>
+                </div>
+            </div>
+
+            {/* UPDATED QUICK METRICS GRID */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
+                <MetricTile icon={<Activity className="text-emerald-500" />} label="Attendance" value={`${attendancePercent}%`} subline="Protocol Summary" color="emerald" />
+                <MetricTile icon={<Award className="text-orange-500" />} label="GPA" value={cGPA} subline="Academic Standing" color="amber" />
+                <MetricTile icon={<Library className="text-cyan-500" />} label="Books Lent" value={booksLentCount} subline="Library Records" color="cyan" onClick={() => setShowLibraryModal(true)} />
+                <MetricTile icon={<Wallet className="text-indigo-500" />} label="Fee Pending" value={`₹${pendingFeeAmount}`} subline="Financial Dues" color="indigo" onClick={() => setShowFeeModal(true)} />
+            </div>
+
+            {/* MODALS FOR DETAILS */}
+            <AnimatePresence>
+                {showLibraryModal && (
+                    <DetailModal title="Library Lending Records" onClose={() => setShowLibraryModal(false)}>
+                        <div className="space-y-4">
+                            {issuedBooks.length > 0 ? issuedBooks.map((b, i) => (
+                                <div key={i} className="p-4 rounded-xl bg-white/5 border border-white/10 flex justify-between items-center">
+                                    <div>
+                                        <p className="font-black text-white text-sm uppercase italic">Book ID: {b.bookId}</p>
+                                        <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Issued: {b.issueDate} • Status: {b.status}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest">Due: {b.returnDate || 'N/A'}</p>
+                                        <p className="text-[9px] font-black text-white/60 uppercase tracking-widest mt-1">Fine: ₹0</p>
+                                    </div>
+                                </div>
+                            )) : <p className="text-center py-10 opacity-40 uppercase font-black text-xs tracking-widest">No books currently issued</p>}
+                        </div>
+                    </DetailModal>
+                )}
+
+                {showFeeModal && (
+                    <DetailModal title="Financial Dues Breakdown" onClose={() => setShowFeeModal(false)}>
+                        <div className="space-y-4">
+                            {fees.length > 0 ? fees.map((f, i) => (
+                                <div key={i} className={`p-4 rounded-xl border flex justify-between items-center ${f.status === 'PAID' ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/5 border-white/10'}`}>
+                                    <div>
+                                        <p className="font-black text-white text-sm uppercase italic">{f.feeType}</p>
+                                        <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Due Date: {f.dueDate} • Status: {f.status}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-sm font-black text-white tracking-tighter italic">₹{f.pendingAmount}</p>
+                                        <p className="text-[8px] font-black text-white/20 uppercase tracking-widest mt-1">Total: ₹{f.amount}</p>
+                                    </div>
+                                </div>
+                            )) : <p className="text-center py-10 opacity-40 uppercase font-black text-xs tracking-widest">No financial records found</p>}
+                        </div>
+                    </DetailModal>
+                )}
+            </AnimatePresence>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* TIMETABLE SECTION */}
+                <div className="lg:col-span-8 space-y-6">
+                    <div className="glass-card-accent border-[var(--border-primary)] p-0 overflow-hidden flex flex-col shadow-2xl">
+                        <div className="p-6 md:p-8 border-b border-white/5 bg-white/5 flex items-center justify-between">
+                            <h3 className="text-lg md:text-xl font-black text-[var(--text-primary)] uppercase tracking-tighter italic">Today's Protocol Stream</h3>
+                            <span className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest opacity-40">{todayStr}</span>
+                        </div>
+                        <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {classes.length > 0 ? classes.map((c, i) => (
+                                <div key={i} className="flex justify-between items-center p-5 md:p-6 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-orange-500 transition-all group cursor-pointer">
+                                    <div className="flex items-center gap-4 md:gap-5">
+                                        <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl border border-white/5 flex items-center justify-center font-black text-xs md:text-sm italic text-orange-500 group-hover:bg-orange-500 group-hover:text-white transition-all">
+                                            {c.time?.split(':')[0]}
+                                        </div>
+                                        <div>
+                                            <p className="font-black text-[var(--text-primary)] text-[12px] md:text-sm uppercase italic tracking-tight">{c.subject}</p>
+                                            <p className="text-[8px] md:text-[9px] font-black text-[var(--text-secondary)] uppercase opacity-40 italic mt-1">{c.instructor} • {c.time} • Rm {c.room}</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={14} className="text-[var(--text-secondary)] group-hover:text-white" />
+                                </div>
+                            )) : (
+                                <div className="col-span-full py-16 text-center opacity-20 italic font-black uppercase text-[10px] tracking-[0.4em]">No Classes Scheduled</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* RECRUITMENT DRIVES */}
+                <div className="lg:col-span-4 space-y-8 h-full">
+                    <div className="glass-card border-[var(--border-primary)] p-0 overflow-hidden flex flex-col shadow-2xl h-full">
+                        <div className="p-6 md:p-8 border-b border-white/5 bg-white/5">
+                            <h3 className="text-xs md:text-sm font-black text-[var(--text-primary)] uppercase tracking-[.2em] flex items-center gap-3 italic">
+                                <Building2 size={16} className="text-orange-500" /> Recruitment Drives
+                            </h3>
+                        </div>
+                        <div className="p-6 md:p-8 space-y-6 flex-1">
+                            <div className="space-y-4">
+                                {placementDrives.length > 0 ? placementDrives.map((drive, i) => (
+                                    <div key={i} className="p-5 md:p-6 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-orange-500/30 transition-all group">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <h5 className="text-sm font-black text-[var(--text-primary)] uppercase italic leading-tight">{drive.companyName}</h5>
+                                            <span className="text-[8px] font-bold text-orange-500 font-mono italic">{drive.time}</span>
+                                        </div>
+                                        <p className="text-[9px] font-black text-[var(--text-secondary)] uppercase opacity-50 flex items-center gap-2 mb-4">
+                                            <Building2 size={12} /> {drive.venue}
+                                        </p>
+                                        <div className="pt-3 border-t border-white/5">
+                                            <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest leading-relaxed">
+                                                Eligibility: {drive.eligibility}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="py-20 text-center opacity-20 italic font-black uppercase text-[9px] tracking-widest border border-dashed border-white/10 rounded-2xl">
+                                        No active drives
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* AUTHORITIES SECTION */}
+            <div className="space-y-6">
+                <h2 className="text-xl md:text-2xl font-black text-[var(--text-primary)] uppercase tracking-tighter italic border-l-4 border-orange-500 pl-4 md:pl-6 ml-4">Authorities Registry</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
+                    <AuthorityCard role="Mentor" name="Smt. Lakshmi Devi" title="Assistant Professor" school="Avanthi Institute" img="https://i.pravatar.cc/150?u=lakshmi" />
+                    <AuthorityCard role="Head of Dept" name="Dr. Srinivas Rao" title="Associate Professor" school="Avanthi Institute" img="https://i.pravatar.cc/150?u=srinivas" />
+                    <AuthorityCard role="Head of School" name="Dr. Prabhakar Reddy" title="Professor" school="Avanthi Institute" img="https://i.pravatar.cc/150?u=prabhakar" />
+                    <AuthorityCard role="Head of Faculty" name="Dr. Anitha Kumari" title="Dean" school="Avanthi Institute" img="https://i.pravatar.cc/150?u=anitha" />
+                </div>
+            </div>
+        </motion.div>
     );
 };
+
+/* ─── HELPER COMPONENTS ─── */
+
+const MetricTile = ({ icon, label, value, subline, color, onClick }) => {
+    return (
+        <div onClick={onClick} className={`glass-card border-[var(--border-primary)] p-5 md:p-8 relative overflow-hidden group hover:scale-[1.02] transition-all cursor-pointer ${onClick ? 'active:scale-95' : ''}`}>
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                {React.cloneElement(icon, { size: 64 })}
+            </div>
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center mb-4 md:mb-6 transition-transform group-hover:rotate-6 bg-white/5">
+                {React.cloneElement(icon, { size: 20 })}
+            </div>
+            <p className="text-3xl md:text-5xl font-black text-[var(--text-primary)] tracking-tighter italic leading-none">{value}</p>
+            <p className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)] mt-2 md:mt-3 opacity-60 italic">{label}</p>
+        </div>
+    );
+};
+
+const DetailModal = ({ title, children, onClose }) => (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+        <motion.div initial={{ scale: 0.9, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.9, y: 20, opacity: 0 }} className="relative w-full max-w-2xl glass-card border-[var(--border-primary)] p-0 overflow-hidden shadow-2xl">
+            <div className="p-6 md:p-8 border-b border-white/10 bg-white/5 flex justify-between items-center">
+                <h3 className="text-lg md:text-xl font-black text-white uppercase italic tracking-tighter">{title}</h3>
+                <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><X size={20} className="text-white" /></button>
+            </div>
+            <div className="p-6 md:p-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                {children}
+            </div>
+            <div className="p-4 bg-white/5 border-t border-white/10 text-center">
+                <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.4em]">Avanthi Integrated Management System</p>
+            </div>
+        </motion.div>
+    </div>
+);
+
+const AuthorityCard = ({ role, name, title, school, img }) => (
+    <div className="glass-card border-[var(--border-primary)] p-6 text-center flex flex-col items-center group hover:border-orange-500/30 transition-all shadow-xl">
+        <div className="w-20 h-20 rounded-full p-1 bg-white/10 border border-white/5 mb-4 group-hover:border-orange-500/50 transition-colors">
+            <img src={img} alt={name} loading="lazy" className="w-full h-full object-cover rounded-full grayscale group-hover:grayscale-0 transition-opacity" />
+        </div>
+        <p className="text-[8px] font-black text-orange-500 uppercase tracking-[0.4em] italic mb-1">{role}</p>
+        <h4 className="text-sm font-black text-[var(--text-primary)] uppercase italic leading-tight">{name}</h4>
+        <p className="text-[8px] font-bold text-[var(--text-secondary)] opacity-40 uppercase tracking-widest mt-1">{school}</p>
+    </div>
+);
 
 export default Dashboard;
