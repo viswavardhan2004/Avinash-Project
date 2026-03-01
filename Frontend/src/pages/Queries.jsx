@@ -20,12 +20,20 @@ const Queries = () => {
         setLoading(true);
         try {
             let res;
-            if (user.role === 'ADMIN') {
+            if (user.role === 'ADMIN' || user.role === 'TEACHER') {
                 res = await queryService.getAll();
             } else {
                 res = await queryService.getBySender(user.username || user.email);
             }
-            setQueries(res.data || []);
+            let fetchedQueries = res.data || [];
+
+            if (user.role === 'TEACHER') {
+                fetchedQueries = fetchedQueries.filter(q =>
+                    q.receiverId === 'TEACHER' || q.senderId === (user.username || user.email)
+                );
+            }
+
+            setQueries(fetchedQueries);
         } catch (error) {
             toast.error("Failed to sync query stream");
         } finally {

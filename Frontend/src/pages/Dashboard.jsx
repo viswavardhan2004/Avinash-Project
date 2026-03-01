@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Calendar, Clock, BarChart3, Users, BookOpen,
-    MessageSquare, MessageCircle, Award, ClipboardList, ChevronRight,
+    MessageSquare, MessageCircle, Award, ClipboardList, ChevronRight, ChevronLeft,
     Activity, Zap, TrendingUp, CheckCircle, AlertCircle, Phone, Mail, Building2, Briefcase,
     Library, Wallet, X, Info
 } from 'lucide-react';
@@ -22,6 +22,7 @@ const Dashboard = () => {
     const [cGPA, setCGPA] = useState(0);
     const [classes, setClasses] = useState([]);
     const [placementDrives, setPlacementDrives] = useState([]);
+    const [activeDriveIndex, setActiveDriveIndex] = useState(0);
     const [booksLentCount, setBooksLentCount] = useState(0);
     const [pendingFeeAmount, setPendingFeeAmount] = useState(0);
     const [issuedBooks, setIssuedBooks] = useState([]);
@@ -55,6 +56,21 @@ const Dashboard = () => {
                     setFees(d.fees || []);
                     setClasses(d.todayClasses || []);
                     setPlacementDrives(d.placementDrives || []);
+
+                    try {
+                        const libRes = await dashboardService.getBooks(); // get raw books to map title
+                        const bks = libRes.data || [];
+                        const mappedIssues = (d.issuedBooks || []).map(issue => {
+                            const b = bks.find(bk => (bk.bookId || bk.id) === issue.bookId);
+                            return {
+                                ...issue,
+                                title: b ? b.title : 'Unknown Asset',
+                            }
+                        });
+                        setIssuedBooks(mappedIssues);
+                    } catch (e) {
+                        setIssuedBooks(d.issuedBooks || []);
+                    }
 
                     // GPA Calculation
                     if (d.grades && d.grades.length > 0) {
@@ -226,7 +242,7 @@ const Dashboard = () => {
                             {issuedBooks.length > 0 ? issuedBooks.map((b, i) => (
                                 <div key={i} className="p-4 rounded-xl bg-white/5 border border-white/10 flex justify-between items-center">
                                     <div>
-                                        <p className="font-black text-white text-sm uppercase italic">Book ID: {b.bookId}</p>
+                                        <p className="font-black text-white text-sm uppercase italic">{b.title || b.bookId}</p>
                                         <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Issued: {b.issueDate} • Status: {b.status}</p>
                                     </div>
                                     <div className="text-right">
@@ -259,10 +275,10 @@ const Dashboard = () => {
                 )}
             </AnimatePresence>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
                 {/* TIMETABLE SECTION */}
-                <div className="lg:col-span-8 space-y-6">
-                    <div className="glass-card-accent border-[var(--border-primary)] p-0 overflow-hidden flex flex-col shadow-2xl">
+                <div className="lg:col-span-8 h-full">
+                    <div className="glass-card-accent border-[var(--border-primary)] p-0 overflow-hidden flex flex-col shadow-2xl h-full min-h-[400px]">
                         <div className="p-6 md:p-8 border-b border-white/5 bg-white/5 flex items-center justify-between">
                             <h3 className="text-lg md:text-xl font-black text-[var(--text-primary)] uppercase tracking-tighter italic">Today's Protocol Stream</h3>
                             <span className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest opacity-40">{todayStr}</span>
@@ -290,35 +306,78 @@ const Dashboard = () => {
 
                 {/* RECRUITMENT DRIVES */}
                 <div className="lg:col-span-4 space-y-8 h-full">
-                    <div className="glass-card border-[var(--border-primary)] p-0 overflow-hidden flex flex-col shadow-2xl h-full">
-                        <div className="p-6 md:p-8 border-b border-white/5 bg-white/5">
+                    <div className="glass-card border-[var(--border-primary)] p-0 overflow-hidden flex flex-col shadow-2xl h-full min-h-[400px]">
+                        <div className="p-6 md:p-8 border-b border-white/5 bg-white/5 flex justify-between items-center">
                             <h3 className="text-xs md:text-sm font-black text-[var(--text-primary)] uppercase tracking-[.2em] flex items-center gap-3 italic">
                                 <Building2 size={16} className="text-orange-500" /> Recruitment Drives
                             </h3>
-                        </div>
-                        <div className="p-6 md:p-8 space-y-6 flex-1">
-                            <div className="space-y-4">
-                                {placementDrives.length > 0 ? placementDrives.map((drive, i) => (
-                                    <div key={i} className="p-5 md:p-6 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-orange-500/30 transition-all group">
-                                        <div className="flex justify-between items-start mb-3">
-                                            <h5 className="text-sm font-black text-[var(--text-primary)] uppercase italic leading-tight">{drive.companyName}</h5>
-                                            <span className="text-[8px] font-bold text-orange-500 font-mono italic">{drive.time}</span>
-                                        </div>
-                                        <p className="text-[9px] font-black text-[var(--text-secondary)] uppercase opacity-50 flex items-center gap-2 mb-4">
-                                            <Building2 size={12} /> {drive.venue}
-                                        </p>
-                                        <div className="pt-3 border-t border-white/5">
-                                            <p className="text-[8px] font-black text-emerald-500 uppercase tracking-widest leading-relaxed">
-                                                Eligibility: {drive.eligibility}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )) : (
-                                    <div className="py-20 text-center opacity-20 italic font-black uppercase text-[9px] tracking-widest border border-dashed border-white/10 rounded-2xl">
-                                        No active drives
-                                    </div>
-                                )}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setActiveDriveIndex(prev => Math.max(0, prev - 1))}
+                                    disabled={activeDriveIndex === 0}
+                                    className="p-1 rounded-lg bg-white/5 text-white/40 disabled:opacity-20 hover:text-orange-500 transition-colors"
+                                >
+                                    <ChevronLeft size={16} />
+                                </button>
+                                <button
+                                    onClick={() => setActiveDriveIndex(prev => Math.min(placementDrives.length - 1, prev + 1))}
+                                    disabled={activeDriveIndex >= placementDrives.length - 1}
+                                    className="p-1 rounded-lg bg-white/5 text-white/40 disabled:opacity-20 hover:text-orange-500 transition-colors"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
                             </div>
+                        </div>
+
+                        <div className="p-6 md:p-8 flex-1 relative flex flex-col">
+                            <div className="flex-1 relative overflow-hidden">
+                                <AnimatePresence mode="wait">
+                                    {placementDrives.length > 0 ? (
+                                        <motion.div
+                                            key={activeDriveIndex}
+                                            initial={{ x: 50, opacity: 0 }}
+                                            animate={{ x: 0, opacity: 1 }}
+                                            exit={{ x: -50, opacity: 0 }}
+                                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                                            className="h-full"
+                                        >
+                                            <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 hover:border-orange-500/30 transition-all h-full flex flex-col justify-between shadow-xl">
+                                                <div>
+                                                    <div className="flex justify-between items-start mb-6">
+                                                        <h5 className="text-xl font-black text-[var(--text-primary)] uppercase italic leading-tight">{placementDrives[activeDriveIndex].companyName}</h5>
+                                                        <span className="text-[10px] font-black text-orange-500 font-mono italic bg-orange-500/10 px-3 py-1 rounded-full">{placementDrives[activeDriveIndex].time}</span>
+                                                    </div>
+                                                    <p className="text-[11px] font-black text-[var(--text-secondary)] uppercase opacity-60 flex items-center gap-3 mb-8">
+                                                        <Building2 size={16} className="text-orange-500/50" /> {placementDrives[activeDriveIndex].venue}
+                                                    </p>
+                                                </div>
+                                                <div className="pt-6 border-t border-white/5">
+                                                    <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em] leading-relaxed flex items-center gap-2">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                        Eligibility: {placementDrives[activeDriveIndex].eligibility}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ) : (
+                                        <div className="h-full flex items-center justify-center opacity-20 italic font-black uppercase text-[9px] tracking-widest border border-dashed border-white/10 rounded-3xl">
+                                            No active drives
+                                        </div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+
+                            {placementDrives.length > 1 && (
+                                <div className="flex justify-center gap-2 mt-8">
+                                    {placementDrives.map((_, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => setActiveDriveIndex(i)}
+                                            className={`h-1.5 transition-all duration-300 rounded-full ${activeDriveIndex === i ? 'w-8 bg-orange-500' : 'w-1.5 bg-white/20 hover:bg-white/40'}`}
+                                        />
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

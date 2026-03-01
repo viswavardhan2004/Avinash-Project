@@ -58,7 +58,7 @@ const FeesAdmin = () => {
 
     const handleEdit = (fee) => {
         setModalMode('EDIT');
-        setEditingId(fee.id);
+        setEditingId(fee.id || fee._id);
         setForm({
             studentId: fee.studentId,
             feeType: fee.feeType,
@@ -170,7 +170,7 @@ const FeesAdmin = () => {
                                         <td className="py-6 px-8 text-right">
                                             <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
                                                 <button onClick={() => handleEdit(fee)} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/40 hover:text-[var(--accent-primary)] shadow-lg"><Edit2 size={16} /></button>
-                                                <button onClick={() => handleDelete(fee.id)} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/40 hover:text-red-500 shadow-lg"><Trash2 size={16} /></button>
+                                                <button onClick={() => handleDelete(fee.id || fee._id)} className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/40 hover:text-red-500 shadow-lg"><Trash2 size={16} /></button>
                                             </div>
                                         </td>
                                     </tr>

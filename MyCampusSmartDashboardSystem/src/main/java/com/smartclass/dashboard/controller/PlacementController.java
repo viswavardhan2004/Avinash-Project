@@ -45,4 +45,9 @@ public class PlacementController {
     public PlacementDrive addDrive(@RequestBody PlacementDrive drive) {
         return placementDriveRepository.save(drive);
     }
+
+    @DeleteMapping("/drives/{id}")
+    public void deleteDrive(@PathVariable String id) {
+        placementDriveRepository.deleteById(id);
+    }
 }

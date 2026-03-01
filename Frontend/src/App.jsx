@@ -22,6 +22,7 @@ import ResetPassword from './pages/auth/ResetPassword';
 import StudentDetail from './pages/StudentDetail';
 import LibraryAdmin from './pages/admin/LibraryAdmin';
 import FeesAdmin from './pages/admin/FeesAdmin';
+import PlacementsAdmin from './pages/admin/PlacementsAdmin';
 import { useAuth } from './services/AuthContext';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -86,6 +87,11 @@ function App() {
         <Route path="fees-admin" element={
           <ProtectedRoute allowedRoles={['ADMIN']}>
             <FeesAdmin />
+          </ProtectedRoute>
+        } />
+        <Route path="placements-admin" element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <PlacementsAdmin />
           </ProtectedRoute>
         } />
       </Route>

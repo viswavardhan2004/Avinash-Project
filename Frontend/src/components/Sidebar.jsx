@@ -47,6 +47,7 @@ const Sidebar = () => {
                 { id: 'sections', label: 'Manage Sections', icon: Grid, path: '/sections', roles: ['ADMIN'] },
                 { id: 'library_admin', label: 'Library Control', icon: Library, path: '/library-admin', roles: ['ADMIN'] },
                 { id: 'fees_admin', label: 'Finance Control', icon: Wallet, path: '/fees-admin', roles: ['ADMIN'] },
+                { id: 'placement_admin', label: 'Placement Control', icon: GraduationCap, path: '/placements-admin', roles: ['ADMIN'] },
                 { id: 'queries_admin', label: 'Queries & Support', icon: MessageCircle, path: '/queries', roles: ['ADMIN', 'STUDENT'] },
             ]
         }

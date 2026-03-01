@@ -132,10 +132,12 @@ export const placementService = {
     getDrives: () => api.get('/placements/drives'),
     add: (data) => api.post('/placements', data),
     addDrive: (data) => api.post('/placements/drives', data),
+    deleteDrive: (id) => api.delete(`/placements/drives/${id}`),
 };
 
 export const dashboardService = {
     getStudentData: (identifier) => api.get(`/dashboard/student?identifier=${identifier}`),
+    getBooks: () => api.get('/library/books'),
 };
 
 export const timetableService = {

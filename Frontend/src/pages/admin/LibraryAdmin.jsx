@@ -116,8 +116,8 @@ const LibraryAdmin = () => {
     );
 
     const filteredIssues = issues.filter(i => {
-        const student = students.find(s => s.id === i.studentId);
-        const book = books.find(b => b.bookId === i.bookId);
+        const student = students.find(s => (s.id || s._id) === i.studentId);
+        const book = books.find(b => (b.bookId || b.id) === i.bookId);
         const searchLow = searchTerm.toLowerCase();
         return student?.name?.toLowerCase().includes(searchLow) ||
             student?.rollNo?.toLowerCase().includes(searchLow) ||
@@ -241,8 +241,8 @@ const LibraryAdmin = () => {
                             </thead>
                             <tbody>
                                 {filteredIssues.map((issue, i) => {
-                                    const student = students.find(s => s.id === issue.studentId);
-                                    const book = books.find(b => b.bookId === issue.bookId);
+                                    const student = students.find(s => (s.id || s._id) === issue.studentId);
+                                    const book = books.find(b => (b.bookId || b.id) === issue.bookId);
                                     return (
                                         <tr key={i} className="border-b border-white/[0.02] hover:bg-white/[0.01] transition-all group">
                                             <td className="py-6 px-8">
@@ -311,8 +311,8 @@ const LibraryAdmin = () => {
                                 <button onClick={() => setShowModal(false)} className="text-white/20 hover:text-white transition-colors"><X size={20} /></button>
                             </div>
 
-                            <form onSubmit={modalMode.includes('BOOK') ? handleBookSubmit : handleIssueSubmit} className="space-y-6">
-                                {modalMode.includes('BOOK') ? (
+                            <form onSubmit={modalMode === 'ADD_BOOK' || modalMode === 'EDIT_BOOK' ? handleBookSubmit : handleIssueSubmit} className="space-y-6">
+                                {modalMode === 'ADD_BOOK' || modalMode === 'EDIT_BOOK' ? (
                                     <>
                                         <FormGroup label="Asset Label/Title" value={bookForm.title} onChange={v => setBookForm({ ...bookForm, title: v })} />
                                         <FormGroup label="Primary Author/Editor" value={bookForm.author} onChange={v => setBookForm({ ...bookForm, author: v })} />
@@ -324,8 +324,8 @@ const LibraryAdmin = () => {
                                     </>
                                 ) : (
                                     <>
-                                        <SelectGroup label="Target Student Registrant" options={students.map(s => ({ label: `${s.name} (${s.rollNo})`, value: s.id }))} value={issueForm.studentId} onChange={v => setIssueForm({ ...issueForm, studentId: v })} />
-                                        <SelectGroup label="Resource Asset Selection" options={books.filter(b => b.availableCopies > 0).map(b => ({ label: b.title, value: b.bookId }))} value={issueForm.bookId} onChange={v => setIssueForm({ ...issueForm, bookId: v })} />
+                                        <SelectGroup label="Target Student Registrant" options={students.map(s => ({ label: `${s.name} (${s.rollNo})`, value: s.id || s._id }))} value={issueForm.studentId} onChange={v => setIssueForm({ ...issueForm, studentId: v })} />
+                                        <SelectGroup label="Resource Asset Selection" options={books.filter(b => b.availableCopies > 0).map(b => ({ label: b.title, value: b.bookId || b.id }))} value={issueForm.bookId} onChange={v => setIssueForm({ ...issueForm, bookId: v })} />
                                         <FormGroup label="Projected Return Terminal" type="date" value={issueForm.returnDate} onChange={v => setIssueForm({ ...issueForm, returnDate: v })} />
                                     </>
                                 )}
